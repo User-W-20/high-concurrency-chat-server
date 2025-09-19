@@ -1,0 +1,6 @@
+/home/wxx/projects/LiteChat/build/CMakeFiles/edit_cache.dir
+/home/wxx/projects/LiteChat/build/CMakeFiles/rebuild_cache.dir
+/home/wxx/projects/LiteChat/build/src/CMakeFiles/server.dir
+/home/wxx/projects/LiteChat/build/src/CMakeFiles/client.dir
+/home/wxx/projects/LiteChat/build/src/CMakeFiles/edit_cache.dir
+/home/wxx/projects/LiteChat/build/src/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/chat.dir/main.cpp.o -o chat 
