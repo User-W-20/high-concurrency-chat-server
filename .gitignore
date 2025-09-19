@@ -1,0 +1,12 @@
+# 构建和目标文件
+build/
+cmake-build-debug/
+*.o
+*.out
+server
+client
+
+# 编辑器和 IDE 文件
+.vscode/
+.idea/
+*.swp
