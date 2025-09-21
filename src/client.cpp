@@ -1,51 +1,61 @@
 //
 // Created by X on 2025/9/15.
 //
-#include <iostream>
 #include <arpa/inet.h>
+#include <csignal>
 #include <unistd.h>
-#include <cstring>
-#include <signal.h>
-#include <thread>
-#include <string>
+
 #include <chrono>
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <thread>
 #include <vector>
 constexpr int PORT = 5008;
 constexpr int BUF_SIZE = 4096;
 
-void recv_thread_func(int sock) {
-    while (true) {
+void recv_thread_func(int sock)
+{
+    while (true)
+    {
         uint32_t net_len;
         ssize_t n = recv(sock, &net_len, sizeof(net_len), 0);
 
-        if (n < 0) {
-            std::cout << "服务器关闭连接\n";
+        if (n < 0)
+        {
+            write(STDOUT_FILENO, "服务器已断开连接\n",strlen("服务器已断开连接\n"));
             break;
         }
 
         uint32_t msg_len = ntohl(net_len);
 
-
         std::vector<char> buf(msg_len);
         size_t bytes_received = 0;
-        while (bytes_received < msg_len) {
-            ssize_t received_now = recv(sock, buf.data() + bytes_received, msg_len - bytes_received, 0);
-            if (received_now <= 0) {
-                std::cout << "服务器关闭连接或接收出错\n";
+        while (bytes_received < msg_len)
+        {
+            ssize_t received_now = recv(sock, buf.data() + bytes_received,
+                                        msg_len - bytes_received, 0);
+            if (received_now <= 0)
+            {
+                write(STDOUT_FILENO, "服务器已断开连接或接收出错\n", strlen("服务器已断开连接或接收出错\n"));
                 return;
             }
             bytes_received += received_now;
         }
-        std::cout.write(buf.data(), msg_len);
-        std::cout<<"\n" << std::flush;
+
+        write(STDOUT_FILENO,buf.data(),msg_len);
+        write(STDOUT_FILENO,"\n",1);
+        fflush(stdout);
     }
 }
 
-int main() {
-    signal(SIGPIPE,SIG_IGN);
+int main()
+{
+    signal(SIGPIPE, SIG_IGN);
 
-    int sock = socket(AF_INET,SOCK_STREAM, 0);
-    if (sock == -1) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1)
+    {
         perror("socket");
         return -1;
     }
@@ -55,7 +65,8 @@ int main() {
     addr.sin_port = htons(5008);
     inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
 
-    if (connect(sock, (sockaddr *) &addr, sizeof(addr)) == -1) {
+    if (connect(sock, (sockaddr *)&addr, sizeof(addr)) == -1)
+    {
         perror("connect");
         close(sock);
         return -1;
@@ -64,11 +75,40 @@ int main() {
     std::thread recv_t(recv_thread_func, sock);
 
     std::string line;
+    if (std::getline(std::cin,line))
+    {
+        if (line=="quit")
+        {
+            close(sock);
+            if (recv_t.joinable()) recv_t.join();
+            return 0;
+        }
 
-    while (std::getline(std::cin, line)) {
-        if (line == "quit") {
+        uint32_t msg_len=htonl(line.size());
+        std::string full_msg(reinterpret_cast<const char*>(&msg_len),sizeof(msg_len));
+        full_msg+=line;
+
+        ssize_t s=send(sock,full_msg.data(),full_msg.size(),0);
+
+        if (s==-1)
+        {
+            perror("send");
+            close(sock);
+            if (recv_t.joinable())recv_t.join();
+            return  -1;
+        }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+
+    while (std::getline(std::cin, line))
+    {
+        if (line == "quit")
+        {
             uint32_t msg_len = htonl(line.size());
-            std::string full_msg(reinterpret_cast<const char *>(&msg_len), sizeof(msg_len));
+            std::string full_msg(reinterpret_cast<const char *>(&msg_len),
+                                 sizeof(msg_len));
             full_msg += line;
             send(sock, full_msg.data(), full_msg.size(), 0);
             break;
@@ -76,19 +116,21 @@ int main() {
 
         uint32_t msg_len = htonl(line.size());
 
-        std::string full_msg(reinterpret_cast<const char *>(&msg_len), sizeof(msg_len));
+        std::string full_msg(reinterpret_cast<const char *>(&msg_len),
+                             sizeof(msg_len));
         full_msg += line;
 
-
         ssize_t s = send(sock, full_msg.data(), full_msg.size(), 0);
-        if (s == -1) {
+        if (s == -1)
+        {
             perror("send");
             break;
         }
     }
 
     close(sock);
-    if (recv_t.joinable())recv_t.join();
+    if (recv_t.joinable())
+        recv_t.join();
 
     return 0;
 }

@@ -14,14 +14,16 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
   /usr/include/asm-generic/posix_types.h \
   /usr/include/asm-generic/socket.h \
   /usr/include/asm-generic/sockios.h \
-  /usr/include/c++/13/algorithm \
   /usr/include/c++/13/array \
+  /usr/include/c++/13/atomic \
   /usr/include/c++/13/backward/binders.h \
   /usr/include/c++/13/bit \
   /usr/include/c++/13/bits/algorithmfwd.h \
   /usr/include/c++/13/bits/alloc_traits.h \
   /usr/include/c++/13/bits/allocated_ptr.h \
   /usr/include/c++/13/bits/allocator.h \
+  /usr/include/c++/13/bits/atomic_base.h \
+  /usr/include/c++/13/bits/atomic_lockfree_defines.h \
   /usr/include/c++/13/bits/basic_ios.h \
   /usr/include/c++/13/bits/basic_ios.tcc \
   /usr/include/c++/13/bits/basic_string.h \
@@ -69,6 +71,7 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
   /usr/include/c++/13/bits/requires_hosted.h \
   /usr/include/c++/13/bits/shared_ptr.h \
   /usr/include/c++/13/bits/shared_ptr_base.h \
+  /usr/include/c++/13/bits/sstream.tcc \
   /usr/include/c++/13/bits/std_abs.h \
   /usr/include/c++/13/bits/std_function.h \
   /usr/include/c++/13/bits/std_mutex.h \
@@ -108,10 +111,12 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
   /usr/include/c++/13/clocale \
   /usr/include/c++/13/compare \
   /usr/include/c++/13/condition_variable \
+  /usr/include/c++/13/csignal \
   /usr/include/c++/13/cstddef \
   /usr/include/c++/13/cstdint \
   /usr/include/c++/13/cstdio \
   /usr/include/c++/13/cstdlib \
+  /usr/include/c++/13/cstring \
   /usr/include/c++/13/ctime \
   /usr/include/c++/13/cwchar \
   /usr/include/c++/13/cwctype \
@@ -136,11 +141,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
   /usr/include/c++/13/mutex \
   /usr/include/c++/13/new \
   /usr/include/c++/13/ostream \
-  /usr/include/c++/13/pstl/execution_defs.h \
-  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
   /usr/include/c++/13/pstl/pstl_config.h \
   /usr/include/c++/13/queue \
   /usr/include/c++/13/ratio \
+  /usr/include/c++/13/sstream \
   /usr/include/c++/13/stdexcept \
   /usr/include/c++/13/streambuf \
   /usr/include/c++/13/string \
@@ -173,6 +177,8 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
   /usr/include/stdint.h \
   /usr/include/stdio.h \
   /usr/include/stdlib.h \
+  /usr/include/string.h \
+  /usr/include/strings.h \
   /usr/include/time.h \
   /usr/include/unistd.h \
   /usr/include/wchar.h \
@@ -358,13 +364,15 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/types/sigval_t.h:
 
-/usr/include/c++/13/functional:
+/usr/include/x86_64-linux-gnu/bits/types/siginfo_t.h:
 
-/usr/include/c++/13/ext/string_conversions.h:
+/usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/sigevent_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
 /usr/include/c++/13/ext/concurrence.h:
-
-/usr/include/c++/13/pstl/glue_algorithm_defs.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
@@ -382,10 +390,6 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/deque:
 
-/usr/include/c++/13/cstdlib:
-
-/usr/include/c++/13/cstdint:
-
 /usr/include/c++/13/cstdio:
 
 /usr/include/x86_64-linux-gnu/bits/sigevent-consts.h:
@@ -400,6 +404,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/stdint-least.h:
 
+/usr/include/c++/13/cstdint:
+
+/usr/include/c++/13/cstdlib:
+
 /usr/include/c++/13/bits/vector.tcc:
 
 /usr/include/c++/13/bits/stl_function.h:
@@ -409,6 +417,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 /usr/include/c++/13/bits/uses_allocator_args.h:
 
 /usr/include/arpa/inet.h:
+
+/usr/include/c++/13/bits/atomic_base.h:
+
+/usr/include/c++/13/cstring:
 
 /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
 
@@ -434,23 +446,11 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/stl_tempbuf.h:
 
-/usr/include/c++/13/bits/stl_queue.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/time_t.h:
-
-/usr/include/x86_64-linux-gnu/bits/epoll.h:
-
 /usr/include/x86_64-linux-gnu/bits/sigaction.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h:
 
 /usr/include/asm-generic/errno.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
-
-/usr/include/c++/13/ext/numeric_traits.h:
-
-/usr/include/c++/13/bits/stl_iterator.h:
 
 /usr/include/c++/13/bits/functexcept.h:
 
@@ -472,6 +472,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/postypes.h:
 
+/usr/include/c++/13/bits/sstream.tcc:
+
+/usr/include/c++/13/ratio:
+
 /usr/include/c++/13/bits/stringfwd.h:
 
 /usr/include/c++/13/bits/this_thread_sleep.h:
@@ -482,10 +486,6 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/stl_deque.h:
 
-/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
-
-/usr/include/c++/13/bits/requires_hosted.h:
-
 /usr/include/c++/13/bits/locale_facets.tcc:
 
 /usr/include/c++/13/bits/stl_heap.h:
@@ -494,7 +494,37 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/parse_numbers.h:
 
+/usr/include/c++/13/bits/ostream_insert.h:
+
+/usr/include/c++/13/bits/ostream.tcc:
+
+/usr/include/c++/13/csignal:
+
+/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
+
+/usr/include/c++/13/bits/stl_queue.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/time_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/epoll.h:
+
+/usr/include/c++/13/bits/requires_hosted.h:
+
+/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
+
+/usr/include/c++/13/bits/atomic_lockfree_defines.h:
+
+/home/wxx/projects/LiteChat/include/client.h:
+
+/usr/include/x86_64-linux-gnu/asm/errno.h:
+
+/usr/include/c++/13/bits/locale_facets.h:
+
 /usr/include/c++/13/backward/binders.h:
+
+/usr/include/linux/errno.h:
+
+/usr/include/c++/13/debug/debug.h:
 
 /usr/include/c++/13/bits/std_mutex.h:
 
@@ -515,8 +545,6 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 /usr/include/asm-generic/sockios.h:
 
 /usr/include/c++/13/bits/move.h:
-
-/usr/include/c++/13/bits/locale_facets.h:
 
 /usr/include/c++/13/ext/aligned_buffer.h:
 
@@ -540,13 +568,9 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/algorithmfwd.h:
 
-/usr/include/c++/13/ext/alloc_traits.h:
+/usr/include/asm-generic/posix_types.h:
 
-/usr/include/c++/13/new:
-
-/usr/include/c++/13/bits/alloc_traits.h:
-
-/usr/include/c++/13/bits/concept_check.h:
+/usr/include/stdc-predef.h:
 
 /usr/include/c++/13/bits/unique_lock.h:
 
@@ -560,9 +584,49 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/bits/enable_special_members.h:
 
-/usr/include/c++/13/bits/istream.tcc:
+/usr/include/asm-generic/socket.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
+
+/home/wxx/projects/LiteChat/include/Logger.h:
+
+/usr/include/x86_64-linux-gnu/bits/sigthread.h:
+
+/usr/include/c++/13/atomic:
+
+/usr/include/x86_64-linux-gnu/sys/epoll.h:
+
+/usr/include/c++/13/bits/basic_string.h:
+
+/usr/include/alloca.h:
+
+/home/wxx/projects/LiteChat/include/threadpool.h:
+
+/usr/include/c++/13/pstl/pstl_config.h:
+
+/usr/include/c++/13/bits/refwrap.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
 
 /usr/include/c++/13/bits/exception_ptr.h:
+
+/usr/include/c++/13/bits/istream.tcc:
+
+/usr/include/c++/13/bits/basic_ios.tcc:
+
+/usr/include/linux/stddef.h:
+
+/usr/include/c++/13/ext/alloc_traits.h:
+
+/usr/include/c++/13/new:
+
+/usr/include/c++/13/bits/alloc_traits.h:
+
+/usr/include/c++/13/bits/concept_check.h:
+
+/usr/include/x86_64-linux-gnu/bits/endianness.h:
+
+/usr/include/c++/13/bits/chrono.h:
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/ctype_inline.h:
 
@@ -578,71 +642,9 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
 
-/usr/include/c++/13/ext/type_traits.h:
-
 /usr/include/c++/13/bits/deque.tcc:
 
 /usr/include/x86_64-linux-gnu/bits/endian.h:
-
-/usr/include/asm-generic/socket.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
-
-/usr/include/c++/13/algorithm:
-
-/home/wxx/projects/LiteChat/include/Logger.h:
-
-/usr/include/x86_64-linux-gnu/bits/sigthread.h:
-
-/usr/include/x86_64-linux-gnu/sys/epoll.h:
-
-/usr/include/c++/13/bits/basic_string.h:
-
-/usr/include/c++/13/bits/chrono.h:
-
-/usr/include/x86_64-linux-gnu/bits/endianness.h:
-
-/usr/include/alloca.h:
-
-/home/wxx/projects/LiteChat/include/threadpool.h:
-
-/usr/include/c++/13/pstl/pstl_config.h:
-
-/usr/include/c++/13/bits/refwrap.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
-
-/usr/include/c++/13/bits/basic_ios.tcc:
-
-/usr/include/c++/13/pstl/execution_defs.h:
-
-/usr/include/linux/stddef.h:
-
-/usr/include/c++/13/bits/std_thread.h:
-
-/usr/include/c++/13/initializer_list:
-
-/home/wxx/projects/LiteChat/include/client.h:
-
-/usr/include/x86_64-linux-gnu/asm/errno.h:
-
-/usr/include/c++/13/bits/ostream_insert.h:
-
-/usr/include/asm-generic/posix_types.h:
-
-/usr/include/stdc-predef.h:
-
-/usr/include/c++/13/array:
-
-/usr/include/x86_64-linux-gnu/bits/sockaddr.h:
-
-/usr/include/c++/13/bits/hash_bytes.h:
-
-/usr/include/c++/13/bits/stl_iterator_base_funcs.h:
-
-/usr/include/asm-generic/errno-base.h:
-
-/usr/include/c++/13/ratio:
 
 /usr/include/c++/13/bits/streambuf_iterator.h:
 
@@ -684,6 +686,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/streambuf:
 
+/usr/include/x86_64-linux-gnu/bits/types/sig_atomic_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/ss_flags.h:
+
 /usr/include/c++/13/condition_variable:
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
@@ -696,17 +702,21 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/types/__sigval_t.h:
 
-/usr/include/c++/13/bits/ios_base.h:
+/usr/include/c++/13/array:
 
-/usr/include/c++/13/bits/ostream.tcc:
+/usr/include/x86_64-linux-gnu/bits/sockaddr.h:
+
+/usr/include/c++/13/bits/stl_iterator_base_funcs.h:
+
+/usr/include/asm-generic/errno-base.h:
+
+/usr/include/c++/13/bits/hash_bytes.h:
+
+/usr/include/c++/13/bits/ios_base.h:
 
 /usr/include/c++/13/bits/uniform_int_dist.h:
 
 /usr/include/c++/13/bits/locale_classes.tcc:
-
-/usr/include/x86_64-linux-gnu/bits/ss_flags.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/sig_atomic_t.h:
 
 /usr/include/c++/13/bits/invoke.h:
 
@@ -725,6 +735,22 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 /usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
 
 /usr/include/c++/13/bits/node_handle.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
+
+/usr/include/c++/13/bits/stl_iterator.h:
+
+/usr/include/c++/13/ext/numeric_traits.h:
+
+/usr/include/c++/13/ext/string_conversions.h:
+
+/usr/include/c++/13/ext/type_traits.h:
+
+/usr/include/c++/13/functional:
+
+/usr/include/c++/13/bits/std_thread.h:
+
+/usr/include/c++/13/initializer_list:
 
 /usr/include/c++/13/ios:
 
@@ -758,8 +784,6 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/c++/13/tuple:
 
-/usr/include/x86_64-linux-gnu/bits/types/siginfo_t.h:
-
 /usr/include/c++/13/type_traits:
 
 /usr/include/c++/13/bits/allocator.h:
@@ -776,19 +800,11 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/linux/close_range.h:
 
-/usr/include/c++/13/debug/debug.h:
-
-/usr/include/linux/errno.h:
-
-/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
-
 /usr/include/pthread.h:
 
 /usr/include/wctype.h:
 
 /usr/include/sched.h:
-
-/usr/include/signal.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/FILE.h:
 
@@ -803,6 +819,14 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 /usr/include/c++/13/cwchar:
 
 /usr/include/x86_64-linux-gnu/asm/socket.h:
+
+/usr/include/string.h:
+
+/usr/include/signal.h:
+
+/usr/include/strings.h:
+
+/usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
 
 /usr/include/unistd.h:
 
@@ -872,8 +896,6 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/socket.h:
 
-/usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
-
 /usr/include/x86_64-linux-gnu/bits/select.h:
 
 /usr/include/x86_64-linux-gnu/bits/time.h:
@@ -900,14 +922,10 @@ src/CMakeFiles/server.dir/server.cpp.o: /home/wxx/projects/LiteChat/src/server.c
 
 /usr/include/x86_64-linux-gnu/bits/types/clockid_t.h:
 
+/usr/include/c++/13/sstream:
+
 /usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
 
 /usr/include/c++/13/bits/hashtable.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/sigevent_t.h:
