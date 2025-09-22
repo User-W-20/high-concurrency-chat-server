@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <atomic>
 
 #include "../include/Logger.h"
 #include "../include/client.h"
@@ -26,7 +27,7 @@ constexpr int HEARTBEAT_TIMEOUT = 60;  // 心跳超时
 constexpr int EPOLL_TIMEOUT_MS = 1000;
 const std::string ADMIN_IP = "127.0.0.1";
 
-bool running = true;
+std::atomic<bool>  running = true;
 
 void safe_print(const std::string &msg)
 {
@@ -63,6 +64,7 @@ struct ServerContext
     std::string admin_token{};
     std::string admin_nickname{};
     std::mutex token_mtx{};
+   std::atomic<bool> shutdown_requested=false;
 
     explicit ServerContext(ThreadPool &p) : pool(p) {}
 };
@@ -313,7 +315,7 @@ void handle_message(
             if (is_admin)
             {
                 auto admin_cmd_iter = admin_commands.find(actual_command);
-                if (is_admin && admin_cmd_iter != admin_commands.end())
+                if ( admin_cmd_iter != admin_commands.end())
                 {
                     admin_cmd_iter->second(fd, trimmed_msg, ctx);
                     safe_print("客户端[" + nickname + "] 执行" +
@@ -337,7 +339,7 @@ void handle_message(
                 std::string target_nickname;
                 std::string whisper_message;
 
-                if (!(iss>>target_nickname))
+                if (!(iss >> target_nickname))
                 {
                     std::string reply = "用法: /w <昵称> <消息>。\n";
                     send_message_with_length(fd, reply);
@@ -396,8 +398,55 @@ void handle_message(
                 return;
             }
 
+            //帮助
+            if (actual_command == "/help")
+            {
+                std::string help_msg =
+                    "可用的命令：\n"
+                    "/list - 列出所有在线用户\n"
+                    "/w <昵称> <消息>- 向指定用户发送私聊消息\n"
+                    "/quit - 退出聊天室\n"
+                    "/whoami - 查看你的昵称\n";
+
+                if (is_admin)
+                {
+                    help_msg += "/kick <昵称> - 踢出指定用户\n";
+                }
+
+                send_message_with_length(fd, help_msg);
+                return;
+            }
+
+            //查询当前用户昵称
+            if (actual_command == "/whoami")
+            {
+                std::string reply = "你的昵称是：" + nickname + "\n";
+                send_message_with_length(fd, reply);
+                return;
+            }
+
+            //退出
+            if (actual_command=="/quit")
+            {
+                if (is_admin)
+                {
+                    std::string reply="正在安全退出服务器，再见！\n";
+                    send_message_with_length(fd,reply);
+
+                    ctx.shutdown_requested=true;
+                    return;
+                }
+                    std::string reply="正在安全退出服务器，再见！\n";
+                    send_message_with_length(fd,reply);
+                    disconnect_client(fd,ctx);
+                    return;
+
+            }
+
             std::string reply = "未知命令或权限不足。\n";
             send_message_with_length(fd, reply);
+
+
         }
         else
         {
@@ -493,6 +542,12 @@ int main()
     {
         int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, EPOLL_TIMEOUT_MS);
 
+        if (ctx.shutdown_requested)
+        {
+            safe_print("收到安全退出请求，服务器即将关闭...\n");
+            break;
+        }
+
         if (nfds == -1)
         {
             if (errno == EINTR)
@@ -557,39 +612,33 @@ int main()
 
             if (fd == server_fd)
             {
-                while (true)
+                sockaddr_in client_addr{};
+                socklen_t client_addr_len = sizeof(client_addr);
+                int client_fd = accept(server_fd, (sockaddr *)&client_addr,
+                                       &client_addr_len);
+
+                if (client_fd == -1)
                 {
-                    sockaddr_in client_addr{};
-                    socklen_t client_addr_len = sizeof(client_addr);
-                    int client_fd = accept(server_fd, (sockaddr *)&client_addr,
-                                           &client_addr_len);
-
-                    if (client_fd == -1)
+                    if (errno != EAGAIN || errno != EWOULDBLOCK)
                     {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            perror("accept");
-                        }
-                        break;
+                        perror("accept");
                     }
-
-                    set_nonblocking(client_fd);
-                    epoll_event ev_client{};
-                    ev_client.events = EPOLLIN || EPOLLET;
-                    ev_client.data.fd = client_fd;
-                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev_client);
-                    char ip_str[INET_ADDRSTRLEN];
-                    inet_ntop(AF_INET, &client_addr.sin_addr, ip_str,
-                              INET_ADDRSTRLEN);
-                    std::string client_ip(ip_str);
-                    std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-                    ctx.clients.emplace(client_fd,
-                                        Client(client_fd, client_ip));
+                    continue;
                 }
+
+                set_nonblocking(client_fd);
+                epoll_event ev_client{};
+                ev_client.events = EPOLLIN | EPOLLET;
+                ev_client.data.fd = client_fd;
+                epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev_client);
+                char ip_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &client_addr.sin_addr, ip_str,INET_ADDRSTRLEN);
+                std::string client_ip(ip_str);
+                {
+                    std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+                    ctx.clients.emplace(client_fd,Client(client_fd, client_ip));
+                }
+
             }
             else if (events[i].events & EPOLLIN)
             {
@@ -657,8 +706,16 @@ int main()
     }
 
     // 关闭所有客户端
+    safe_print("正在关闭所有客户端连接...\n");
+    {
+        std::lock_guard<std::mutex>lock(ctx.clients_mtx);
+        for (const auto&pair:ctx.clients)
+        {
+            close(pair.first);
+        }
+    }
     close(server_fd);
     close(epoll_fd);
-
+    safe_print("服务器已安全退出。\n");
     return 0;
 }
