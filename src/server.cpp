@@ -3,6 +3,7 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -22,7 +23,7 @@ constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
 constexpr int BUF_SIZE = 1024;
 constexpr int HEARTBEAT_TIMEOUT = 60;  // 心跳超时
-constexpr int EPOLL_TIMEOUT_MS=1000;
+constexpr int EPOLL_TIMEOUT_MS = 1000;
 const std::string ADMIN_IP = "127.0.0.1";
 
 bool running = true;
@@ -66,13 +67,13 @@ struct ServerContext
     explicit ServerContext(ThreadPool &p) : pool(p) {}
 };
 
-void send_message_with_length(int fd,const std::string&message)
+void send_message_with_length(int fd, const std::string &message)
 {
-    uint32_t net_len=htonl(message.size());
+    uint32_t net_len = htonl(message.size());
 
-    send(fd,&net_len,sizeof(net_len),0);
+    send(fd, &net_len, sizeof(net_len), 0);
 
-    send(fd,message.data(),message.size(),0);
+    send(fd, message.data(), message.size(), 0);
 }
 
 void handle_kick(int fd, const std::string &trimmed_msg, ServerContext &ctx)
@@ -132,19 +133,18 @@ void handle_list(int fd, const std::string &, ServerContext &ctx)
     std::string list_str = "在线用户：";
 
     {
-        std::lock_guard<std::mutex>lock(ctx.clients_mtx);
-        for (const auto& pair:ctx.clients)
+        std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+        for (const auto &pair : ctx.clients)
         {
-            list_str+=pair.second.nickname+" ";
+            list_str += pair.second.nickname + " ";
         }
     }
 
-    uint32_t list_len=htonl(list_str.size());
-    std::string full_list(reinterpret_cast<const char*>(&list_len),sizeof(list_len));
-    full_list+=list_str;
-    send(fd,full_list.data(),full_list.size(),0);
-
-
+    uint32_t list_len = htonl(list_str.size());
+    std::string full_list(reinterpret_cast<const char *>(&list_len),
+                          sizeof(list_len));
+    full_list += list_str;
+    send(fd, full_list.data(), full_list.size(), 0);
 }
 
 void broadcast(const std::string &msg, int sender_fd, ServerContext &ctx)
@@ -236,16 +236,15 @@ void handle_message(
                 ctx.admin_token = "";
                 std::string reply = "恭喜，您已成为管理员！！您的昵称是：" +
                                     ctx.admin_nickname + "\n";
-                send_message_with_length(fd,reply);
+                send_message_with_length(fd, reply);
                 safe_print("客户端 " + std::to_string(fd) +
                            " 已验证为管理员，并设置昵称: " +
                            ctx.admin_nickname + "\n");
-
             }
             else
             {
                 std::string reply = "仅限本地管理员登录。\n";
-                send_message_with_length(fd,reply);
+                send_message_with_length(fd, reply);
             }
         }
         else
@@ -261,7 +260,7 @@ void handle_message(
             {
                 std::string reply_msg = "昵称 '" + ctx.admin_nickname +
                                         "' 是保留昵称，请选择其他昵称。\n";
-                send_message_with_length(fd,reply_msg);
+                send_message_with_length(fd, reply_msg);
                 return;
             }
 
@@ -277,8 +276,8 @@ void handle_message(
             {
                 std::string reply_msg =
                     "昵称 '" + trimmed_msg + "' 已被占用，请选择其他昵称。\n";
-               // send(fd, reply_msg.c_str(), reply_msg.size(), 0);
-                send_message_with_length(fd,reply_msg);
+                // send(fd, reply_msg.c_str(), reply_msg.size(), 0);
+                send_message_with_length(fd, reply_msg);
                 disconnect_client(fd, ctx);
             }
             else
@@ -305,19 +304,20 @@ void handle_message(
 
         if (!command.empty() && command[0] == '/')
         {
-            std::string actual_command=command;
-            if (actual_command.size()>1&&actual_command[1]=='/')
+            std::string actual_command = command;
+            if (actual_command.size() > 1 && actual_command[1] == '/')
             {
-                actual_command=actual_command.substr(1);
+                actual_command = actual_command.substr(1);
             }
 
             if (is_admin)
             {
-                auto admin_cmd_iter=admin_commands.find(actual_command);
-                if (is_admin&& admin_cmd_iter!=admin_commands.end())
+                auto admin_cmd_iter = admin_commands.find(actual_command);
+                if (is_admin && admin_cmd_iter != admin_commands.end())
                 {
-                    admin_cmd_iter->second(fd,trimmed_msg,ctx);
-                    safe_print("客户端[" + nickname + "] 执行" + actual_command + "\n");
+                    admin_cmd_iter->second(fd, trimmed_msg, ctx);
+                    safe_print("客户端[" + nickname + "] 执行" +
+                               actual_command + "\n");
                     return;
                 }
             }
@@ -326,14 +326,78 @@ void handle_message(
             if (user_cmd_iter != user_commands.end())
             {
                 user_cmd_iter->second(fd, trimmed_msg, ctx);
-                safe_print("客户端[" + nickname + "] 执行 " + actual_command + "\n");
+                safe_print("客户端[" + nickname + "] 执行 " + actual_command +
+                           "\n");
                 return;
             }
 
+            // 私聊
+            if (actual_command == "/w" || actual_command == "/whisper")
+            {
+                std::string target_nickname;
+                std::string whisper_message;
 
+                if (!(iss>>target_nickname))
+                {
+                    std::string reply = "用法: /w <昵称> <消息>。\n";
+                    send_message_with_length(fd, reply);
+                    return;
+                }
+
+                std::getline(iss, whisper_message);
+                whisper_message.erase(
+                    0, whisper_message.find_first_not_of(" \t\n\r\f\v"));
+
+                if (whisper_message.empty())
+                {
+                    std::string reply = "私聊消息不能为空。\n";
+                    send_message_with_length(fd, reply);
+                    return;
+                }
+
+                if (target_nickname == nickname)
+                {
+                    std::string reply = "不能和自己私聊。\n";
+                    send_message_with_length(fd, reply);
+                    return;
+                }
+
+                int target_fd = -1;
+                {
+                    std::lock_guard<std::mutex> client_lock(ctx.clients_mtx);
+                    for (const auto &pair : ctx.clients)
+                    {
+                        if (pair.second.nickname == target_nickname)
+                        {
+                            target_fd = pair.first;
+                            break;
+                        }
+                    }
+                }
+
+                if (target_fd != -1)
+                {
+                    std::string sender_info = "来自 " + nickname + " 的私聊：";
+                    std::string whisper_reply_to_target =
+                        sender_info + whisper_message;
+                    send_message_with_length(target_fd,
+                                             whisper_reply_to_target);
+                    std::string confirm_msg =
+                        "已向 " + target_nickname + " 发送私聊消息。\n";
+                    send_message_with_length(fd, confirm_msg);
+                }
+                else
+                {
+                    std::string reply =
+                        "用户 '" + target_nickname + "' 不在线或不存在。\n";
+                    send_message_with_length(fd, reply);
+                }
+
+                return;
+            }
 
             std::string reply = "未知命令或权限不足。\n";
-            send_message_with_length(fd,reply);
+            send_message_with_length(fd, reply);
         }
         else
         {
@@ -361,11 +425,11 @@ int main()
     // 映射
 
     std::unordered_map<std::string, CommandHandler> admin_commands;
-    std::unordered_map<std::string,CommandHandler> user_commands;
+    std::unordered_map<std::string, CommandHandler> user_commands;
     // 注册命令处理器
-    admin_commands ["/kick"]=handle_kick;
-    admin_commands["/list"]=handle_list;
-    user_commands["/list"]=handle_list;
+    admin_commands["/kick"] = handle_kick;
+    admin_commands["/list"] = handle_list;
+    user_commands["/list"] = handle_list;
 
     if (server_fd == -1)
     {
@@ -427,8 +491,7 @@ int main()
 
     while (running)
     {
-        int nfds =
-            epoll_wait(epoll_fd, events, MAX_EVENTS, EPOLL_TIMEOUT_MS);
+        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, EPOLL_TIMEOUT_MS);
 
         if (nfds == -1)
         {
