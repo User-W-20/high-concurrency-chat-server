@@ -19,30 +19,43 @@ void recv_thread_func(int sock)
     while (true)
     {
         uint32_t net_len;
-        ssize_t n = recv(sock, &net_len, sizeof(net_len), 0);
+        char *net_len_ptr=reinterpret_cast<char*>(&net_len);
+        size_t bytes_received_len=0;
 
-        if (n < 0)
+        while (bytes_received_len<sizeof(net_len))
         {
-            write(STDOUT_FILENO, "服务器已断开连接\n",strlen("服务器已断开连接\n"));
-            break;
-        }
+            ssize_t n=recv(sock,net_len_ptr+bytes_received_len,sizeof(net_len)-bytes_received_len,0);
 
-        uint32_t msg_len = ntohl(net_len);
-
-        std::vector<char> buf(msg_len);
-        size_t bytes_received = 0;
-        while (bytes_received < msg_len)
-        {
-            ssize_t received_now = recv(sock, buf.data() + bytes_received,
-                                        msg_len - bytes_received, 0);
-            if (received_now <= 0)
+            if (n<=0)
             {
-                write(STDOUT_FILENO, "服务器已断开连接或接收出错\n", strlen("服务器已断开连接或接收出错\n"));
+                if (n==0)
+                {
+                    write(STDOUT_FILENO, "服务器已关闭连接\n", strlen("服务器已关闭连接\n"));
+                }else
+                {
+                    write(STDOUT_FILENO,"服务器已断开连接\n", strlen("服务器已断开连接\n"));
+                }
                 return;
             }
-            bytes_received += received_now;
+            bytes_received_len+=n;
         }
 
+        uint32_t msg_len=ntohl(net_len);
+
+        std::vector<char>buf(msg_len);
+        size_t bytes_received=0;
+
+        while (bytes_received<msg_len)
+        {
+            ssize_t received_now=recv(sock,buf.data()+bytes_received,msg_len-bytes_received,0);
+
+            if (received_now<=0)
+            {
+                write(STDOUT_FILENO,"服务器已断开连接或接收出错\n", strlen("服务器已断开连接或接收出错\n"));
+                return;
+            }
+            bytes_received+=received_now;
+        }
         write(STDOUT_FILENO,buf.data(),msg_len);
         write(STDOUT_FILENO,"\n",1);
         fflush(stdout);
@@ -87,7 +100,6 @@ int main()
         uint32_t msg_len=htonl(line.size());
         std::string full_msg(reinterpret_cast<const char*>(&msg_len),sizeof(msg_len));
         full_msg+=line;
-
         ssize_t s=send(sock,full_msg.data(),full_msg.size(),0);
 
         if (s==-1)
@@ -99,7 +111,7 @@ int main()
         }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 
     while (std::getline(std::cin, line))
@@ -119,6 +131,7 @@ int main()
         std::string full_msg(reinterpret_cast<const char *>(&msg_len),
                              sizeof(msg_len));
         full_msg += line;
+
 
         ssize_t s = send(sock, full_msg.data(), full_msg.size(), 0);
         if (s == -1)
