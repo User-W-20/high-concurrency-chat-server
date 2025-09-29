@@ -20,6 +20,7 @@
 #include "../include/client.h"
 #include "../include/group_manager.h"
 #include "../include/threadpool.h"
+#include "../include/LuaManager.h"
 
 constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
@@ -220,6 +221,22 @@ void handle_message(
             }
         }
 
+        if (command_executed==false)
+        {
+            safe_print("DEBUG: Command '"+command + "' NOT found in C++ maps. Attempting Lua.\n");
+        }
+
+        if (!command_executed)
+        {
+            bool lua_handled=LuaManager::getInstance().execute_command(nickname,trimmed_msg);
+
+            if (lua_handled)
+            {
+                safe_print("客户端[" + nickname + "] 执行 Lua 命令: " + command + "\n");
+                command_executed=true;
+            }
+        }
+
         if (command_executed)
         {
             if (!reply_to_client.empty())
@@ -260,6 +277,22 @@ int main()
     { send_message_with_length(fd, message); };
 
     ServerContext ctx(pool, sender);
+
+    try
+    {
+        LuaManager &lua_manager=LuaManager::initializeInstance(ctx);
+
+        if (!lua_manager.initialize())
+        {
+            LOG_FATAL("LuaManager 初始化失败 (加载 commands.lua 失败)，服务器退出。");
+            return  1;
+        }
+        LOG_INFO("Lua 命令系统加载成功。");
+    }catch (const std::exception&e)
+    {
+        LOG_FATAL("LuaManager 初始化时发生致命错误: "+std::string(e.what()));
+        return 1;
+    }
 
     std::unordered_map<std::string, ServerCommandHandler> admin_commands;
     std::unordered_map<std::string, ServerCommandHandler> user_commands;
@@ -518,7 +551,7 @@ int main()
     ctx.admin_nickname = ADMIN_NICKNAME;
     ctx.admin_token = ADMIN_TOKEN;
 
-    Logger::getInstance().log("服务器启动，等待客户端连接...\n");
+    LOG_INFO("服务器启动，等待客户端连接...\n");
     safe_print("管理员口令已生成: " + ctx.admin_token + "\n");
 
     while (running)
@@ -696,6 +729,9 @@ int main()
             close(pair.first);
         }
     }
+
+
+
     close(server_fd);
     close(epoll_fd);
     safe_print("服务器已安全退出。\n");

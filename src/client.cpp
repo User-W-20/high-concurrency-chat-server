@@ -75,7 +75,7 @@ int main()
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(5008);
+    addr.sin_port = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
 
     if (connect(sock, (sockaddr *)&addr, sizeof(addr)) == -1)
@@ -88,34 +88,14 @@ int main()
     std::thread recv_t(recv_thread_func, sock);
 
     std::string line;
-    if (std::getline(std::cin,line))
-    {
-        if (line=="quit")
-        {
-            close(sock);
-            if (recv_t.joinable()) recv_t.join();
-            return 0;
-        }
-
-        uint32_t msg_len=htonl(line.size());
-        std::string full_msg(reinterpret_cast<const char*>(&msg_len),sizeof(msg_len));
-        full_msg+=line;
-        ssize_t s=send(sock,full_msg.data(),full_msg.size(),0);
-
-        if (s==-1)
-        {
-            perror("send");
-            close(sock);
-            if (recv_t.joinable())recv_t.join();
-            return  -1;
-        }
-    }
-
-   std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
 
     while (std::getline(std::cin, line))
     {
+        if (!line.empty()&&line.back()=='\r')
+        {
+            line.pop_back();
+        }
+
         if (line == "quit")
         {
             uint32_t msg_len = htonl(line.size());
@@ -131,7 +111,6 @@ int main()
         std::string full_msg(reinterpret_cast<const char *>(&msg_len),
                              sizeof(msg_len));
         full_msg += line;
-
 
         ssize_t s = send(sock, full_msg.data(), full_msg.size(), 0);
         if (s == -1)
