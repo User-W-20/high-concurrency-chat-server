@@ -1,13 +1,42 @@
-# 构建和目标文件
+# -----------------------------------------------------------------
+# 1. 构建目录和临时文件
+# -----------------------------------------------------------------
+# 你的主构建目录 (build/)
 build/
-cmake-build-debug/
-*.o
-*.out
+
+# 常见的 CMake/IDE 构建目录
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+
+# 目标和编译中间文件
+*.o                 # Object files
+*.a                 # Static libraries
+*.so                # Shared libraries
+*.dll               # Windows DLLs
+*.out               # Common output/test files
+*.ko                # Linux kernel modules
+
+# -----------------------------------------------------------------
+# 2. 目标可执行文件 (按项目要求)
+# -----------------------------------------------------------------
+# 你的最终可执行文件
 server
 client
 
-# 编辑器和 IDE 文件
+# -----------------------------------------------------------------
+# 3. 编辑器和 IDE 文件
+# -----------------------------------------------------------------
+# JetBrains IDEs (CLion, IntelliJ, etc.)
+.idea/
+*.iml
+
+# VS Code
 .vscode/
-.idea/
+
+# Vim/Nano/Swap files
 *.swp
-.idea/
+*~
