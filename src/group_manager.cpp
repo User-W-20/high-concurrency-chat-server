@@ -5,10 +5,9 @@
 #include "../include/client.h"
 #include <functional>
 #include <sstream>
-#include <stdexcept>
 
 
-GroupManager::GroupManager(MessageSender sender,const std::unordered_map<int,Client>&clients_map) : message_sender(sender),clients_ref(clients_map)
+GroupManager::GroupManager(MessageSender sender, std::unordered_map<int,Client>&clients_map) : message_sender(std::move(sender)),clients_ref(std::move(clients_map))
 {
 
 }
@@ -27,7 +26,6 @@ std::vector<std::string> GroupManager::split(const std::string& s,
     return tokens;
 }
 
-GroupManager::~GroupManager() {}
 
 std::string GroupManager::handle_create_group(
     const std::string& username, const std::vector<std::string>& parts)
@@ -37,7 +35,7 @@ std::string GroupManager::handle_create_group(
         return "用法: /create <群名>";
     }
 
-    std::string group_name=parts[1];
+    const std::string &group_name=parts[1];
     {
         std::lock_guard<std::mutex>lock(mtx);
         if (groups.count(group_name))
@@ -60,7 +58,7 @@ std::string GroupManager::handle_join_group(
         return "用法: /join <群名>";
     }
 
-    std::string group_name=parts[1];
+    const std::string &group_name=parts[1];
     {
         std::lock_guard<std::mutex>lock(mtx);
         if (!groups.count(group_name))
@@ -104,7 +102,7 @@ std::string GroupManager::handle_send_message(
         return "用法: /send <群名> <消息>";
     }
 
-    std::string group_name=parts[1];
+    const  std::string &group_name=parts[1];
     std::string message_content;
     for (size_t i=2;i<parts.size();++i)
     {
@@ -122,15 +120,14 @@ std::string GroupManager::handle_send_message(
         }else
         {
             std::string full_message="["+group_name+"]"+username+": "+message_content;
-            for (const std::string member_name:groups.at(group_name))
+            for (const std::string& member_name:groups.at(group_name))
             {
-                bool found=false;
+
                 for (const auto &pair:clients_ref)
                 {
                     if (pair.second.nickname==member_name)
                     {
                         message_sender(pair.first,full_message);
-                        found=true;
                         break;
                     }
                 }

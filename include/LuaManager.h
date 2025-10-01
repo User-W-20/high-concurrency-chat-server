@@ -5,18 +5,16 @@
 #ifndef LITECHAT_LUAMANAGER_H
 #define LITECHAT_LUAMANAGER_H
 #include <mutex>
-#include <queue>
 #include <string>
-#include <vector>
 
 extern "C"
 {
 #include "lua.h"
-#include "lauxlib.h"
 #include "lualib.h"
+#include "lauxlib.h"
 }
 
-class ServerContext;
+struct ServerContext;
 
 class LuaManager
 {
@@ -30,16 +28,16 @@ public:
 
     bool initialize();
 
-    bool execute_command(const std::string& nickname,
-                         const std::string& command,
-                         const std::vector<std::string>& args);
+    [[nodiscard]] ServerContext & getServerContext() const
+    {
+        return  ctx_ref;
+    }
 
-    bool execute_command(const std::string &nickname,const std::string&raw_message);
-
+    bool execute_command(const std::string &nickname,bool is_admin,const std::string&full_msg);
     ~LuaManager();
 
 private:
-    LuaManager(ServerContext& ctx);
+    explicit LuaManager(ServerContext& ctx);
 
     void register_c_functions();
 

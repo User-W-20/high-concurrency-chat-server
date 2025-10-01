@@ -196,41 +196,49 @@ void handle_message(
     if (trimmed_msg[0] == '/')
     {
         std::vector<std::string> args = split(trimmed_msg);
-        std::string command = args[0];
+         std::string command = args[0];
+
+        while (command.length()>1&&command[0]=='/'&&command[1]=='/')
+        {
+            command.erase(0,1);
+        }
+        args[0]=command;
+
         std::string reply_to_client;
         bool command_executed=false;
 
-        if (is_admin)
+        auto user_cmd_iter=user_commands.find(command);
+        if (user_cmd_iter!=user_commands.end())
         {
-            auto admin_cmd_iter = admin_commands.find(command);
-            if (admin_cmd_iter != admin_commands.end())
+            reply_to_client=user_cmd_iter->second(args,fd);
+            command_executed=true;
+        }
+
+        else
+        {
+            auto admin_cmd_iter=admin_commands.find(command);
+            if (admin_cmd_iter!=admin_commands.end())
             {
-                reply_to_client = admin_cmd_iter->second(args, fd);
-                safe_print("客户端[" + nickname + "] 执行" + command + "\n");
-                command_executed=true;
+                if (is_admin)
+                {
+                    reply_to_client=admin_cmd_iter->second(args,fd);
+                    command_executed=true;
+                }else
+                {
+                    reply_to_client="错误：'" +command+"' 命令需要管理员权限。";
+                    command_executed=true;
+                }
             }
         }
+        safe_print("DEBUG: Client FD " + std::to_string(fd) +
+                  " (Nickname: " + nickname +
+                  ") C++ state is_admin=" + (is_admin ? "TRUE" : "FALSE") + "\n");
 
         if (!command_executed)
         {
-            auto user_cmd_iter = user_commands.find(command);
-            if (user_cmd_iter != user_commands.end())
-            {
-                reply_to_client = user_cmd_iter->second(args, fd);
-                command_executed=true;
-            }
-        }
+            safe_print("DEBUG: Command '"+command+"' NOT found in C++ maps. Attempting Lua.\n");
 
-        if (command_executed==false)
-        {
-            safe_print("DEBUG: Command '"+command + "' NOT found in C++ maps. Attempting Lua.\n");
-        }
-
-        if (!command_executed)
-        {
-            bool lua_handled=LuaManager::getInstance().execute_command(nickname,trimmed_msg);
-
-            if (lua_handled)
+            if (LuaManager::getInstance().execute_command(nickname,is_admin,trimmed_msg))
             {
                 safe_print("客户端[" + nickname + "] 执行 Lua 命令: " + command + "\n");
                 command_executed=true;
@@ -245,10 +253,9 @@ void handle_message(
             }
         }else
         {
-            reply_to_client="未知命令或权限不足。";
-            send_message_with_length(fd,reply_to_client);
+            reply_to_client="未知命令。";
+            send_message_with_length(fd, reply_to_client);
         }
-
     }
     else
     {
@@ -332,7 +339,7 @@ int main()
             return "无法获取您的昵称。\n";
         }
 
-        std::string target_nickname = args[1];
+        const   std::string& target_nickname = args[1];
         if (target_nickname == sender_nickname)
         {
             return "不能和自己私聊。\n";
@@ -415,75 +422,71 @@ int main()
         return "";
     };
 
-    user_commands["/kick"] = [&ctx](const std::vector<std::string> &args,
-                                    int fd) -> std::string
+    admin_commands["/kick"]=[&ctx](const std::vector<std::string>&args,int fd)->std::string
     {
-        if (args.size() < 2)
+        if (args.size()<2)
         {
             return "用法: /kick <昵称>。\n";
         }
 
-        std::string target_nickname = args[1];
+        const std::string& target_nickname=args[1];
         if (target_nickname.empty())
         {
             return "请指定要踢出的用户昵称。\n";
         }
 
-        int target_fd = -1;
+        int target_fd=-1;
         {
-            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-            for (const auto &pair : ctx.clients)
+            std::lock_guard<std::mutex>lock(ctx.clients_mtx);
+            for (const auto&pair:ctx.clients)
             {
-                if (pair.second.nickname == target_nickname)
+                if (pair.second.nickname==target_nickname)
                 {
-                    target_fd = pair.first;
+                    target_fd=pair.first;
                     break;
                 }
             }
         }
 
-        if (target_fd != -1)
+        if (target_fd!=-1)
         {
-            std::string admin_name = ctx.get_username(fd);
+            std::string admin_name=ctx.get_username(fd);
             std::stringstream ss;
-            ss << admin_name << " 将 " << target_nickname << " 踢出聊天室。\n";
-            ctx.broadcast(ss.str(), fd);
-            std::string reply_to_kick = "您已被管理员踢出聊天室。\n";
-            send_message_with_length(target_fd, reply_to_kick);
-            disconnect_client(target_fd, ctx);
+            ss<<admin_name<<" 将 " <<target_nickname<< " 踢出聊天室。\n";
+            ctx.broadcast(ss.str(),fd);
+            std::string reply_to_kick="您已被管理员踢出聊天室。\n";
+            send_message_with_length(target_fd,reply_to_kick);
+            disconnect_client(target_fd,ctx);
             return "用户 " + target_nickname + " 已被踢出。\n";
-        }
-        else
+        }else
         {
             return "用户 '" + target_nickname + "' 不在线。\n";
         }
     };
 
-    // 群组命令
-    user_commands["/create"] = [&ctx](const std::vector<std::string> &args,
-                                      int fd) -> std::string
+    admin_commands["/create"]=[&ctx](const std::vector<std::string>&args,int fd)->std::string
     {
-        std::string username = ctx.get_username(fd);
+        std::string username=ctx.get_username(fd);
         if (username.empty())
         {
             return "请先设置昵称。\n";
         }
-        return ctx.group_manager->handle_create_group(username, args);
+        return ctx.group_manager->handle_create_group(username,args);
     };
 
-    user_commands["/join"] = [&ctx](const std::vector<std::string> &args,
-                                    int fd) -> std::string
+    admin_commands["/join"] = [&ctx](const std::vector<std::string> &args,
+                                 int fd) -> std::string
     {
-        std::string username = ctx.get_username(fd);
+        std::string username=ctx.get_username(fd);
         if (username.empty())
         {
             return "请先设置昵称。\n";
         }
-        return ctx.group_manager->handle_join_group(username, args);
+        return  ctx.group_manager->handle_join_group(username,args);
     };
 
-    user_commands["/send"] = [&ctx](const std::vector<std::string> &args,
-                                    int fd) -> std::string
+    admin_commands["/send"] = [&ctx](const std::vector<std::string> &args,
+                                 int fd) -> std::string
     {
         std::string username = ctx.get_username(fd);
         if (username.empty())
@@ -493,8 +496,8 @@ int main()
         return ctx.group_manager->handle_send_message(username, args);
     };
 
-    user_commands["/listgroups"] = [&ctx](const std::vector<std::string> &args,
-                                          int fd) -> std::string
+    admin_commands["/listgroups"] = [&ctx](const std::vector<std::string> &args,
+                                       int fd) -> std::string
     {
         std::string username = ctx.get_username(fd);
         if (username.empty())
@@ -648,11 +651,11 @@ int main()
                 char ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &client_addr.sin_addr, ip_str,
                           INET_ADDRSTRLEN);
-                std::string client_ip(ip_str);
+
                 {
                     std::lock_guard<std::mutex> lock(ctx.clients_mtx);
                     ctx.clients.emplace(client_fd,
-                                        Client(client_fd, client_ip));
+                                        Client(client_fd, std::string(ip_str)));
                 }
             }
             else if (events[i].events & EPOLLIN)

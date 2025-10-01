@@ -18,8 +18,8 @@ class Client
     bool is_admin = false;
     std::chrono::steady_clock::time_point last_activity;
 
-    Client(int file_descriptor, const std::string& client_ip)
-        : fd(file_descriptor), ip(client_ip)
+    Client(int file_descriptor,  std::string client_ip)
+        : fd(file_descriptor), ip(std::move(client_ip))
     {
         last_activity = std::chrono::steady_clock::now();
     }

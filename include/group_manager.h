@@ -18,8 +18,8 @@ using MessageSender=std::function<void(int ,const std::string&)>;
 class GroupManager
 {
    public:
-    explicit GroupManager(MessageSender sender,const std::unordered_map<int,Client>&clients_map);
-    ~GroupManager();
+    explicit GroupManager(MessageSender sender, std::unordered_map<int,Client>&clients_map);
+    ~GroupManager()=default;
 
     std::string handle_create_group(const std::string& username, const std::vector<std::string>& parts);
     std::string handle_join_group(const std::string& username, const std::vector<std::string>& parts);
@@ -34,7 +34,7 @@ class GroupManager
 
     const std::unordered_map<int,Client>&clients_ref;
 
-    std::vector<std::string>split(const std::string&s,char delimiter);
+    static std::vector<std::string>split(const std::string&s,char delimiter);
 };
 
 #endif  // LITECHAT_GROUP_MANAGER_H

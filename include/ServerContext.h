@@ -35,14 +35,18 @@ struct ServerContext
     std::mutex token_mtx{};
     std::atomic<bool>shutdown_requested=false;
 
+    bool is_user_admin(const std::string &nickname);
+
     std::unique_ptr<GroupManager>group_manager;
 
-    explicit ServerContext(ThreadPool&p,MessageSender sender);
+    explicit ServerContext(ThreadPool&p,const MessageSender& sender);
 
     void broadcast(const std::string &msg,int sender_fd);
     std::string get_username(int fd);
     void set_username(int fd,const std::string &username);
     void remove_client(int fd);
+
+    bool kick_user_by_nickname(const std::string&target_nickname,const std::string&kicker_nickname);
 };
 
 #endif  // LITECHAT_SERVERCONTEXT_H

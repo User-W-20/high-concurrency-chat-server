@@ -19,6 +19,43 @@ static std::vector<std::string>split_message(const std::string &str)
     return  tokens;
 }
 
+static int kick_user_to_lua(lua_State*L)
+{
+    if (!global_lua_manager_instance)
+    {
+        LOG_ERROR("Lua API Error: LuaManager 实例未初始化。");
+        lua_pushboolean(L,0);
+        return  1;
+    }
+
+    if (lua_gettop(L)!=2||!lua_isstring(L,1)||!lua_isstring(L,2))
+    {
+        LOG_ERROR("Lua API Error: Chat.kick_user 必须提供两个字符串参数 (目标昵称, 管理员昵称)。");
+        lua_pushboolean(L,0);
+        return 1;
+    }
+
+    const char* target_nickname=lua_tostring(L,1);
+    const char* admin_nickname=lua_tostring(L,2);
+
+    ServerContext&ctx=global_lua_manager_instance->getServerContext();
+
+    if (!ctx.is_user_admin(admin_nickname))
+    {
+        LOG_ERROR("安全警报：用户 [" + std::string(admin_nickname) + "] 绕过 Lua 权限检查，尝试踢人。已在 C++ 层面阻止。");
+
+        lua_pushboolean(L,0);
+
+        return 1;
+    }
+
+    bool success=ctx.kick_user_by_nickname(target_nickname,admin_nickname);
+
+    lua_pushboolean(L,success?1:0);
+    return  1;
+}
+
+
 LuaManager& LuaManager::initializeInstance(ServerContext& ctx)
 {
     if (global_lua_manager_instance==nullptr)
@@ -106,8 +143,7 @@ int LuaManager::lua_broadcast_message(lua_State* L)
         ctx.broadcast(full_msg,-1);
         LOG_INFO("Lua 广播成功: "+full_msg);
     }
-
-    return  0;
+    return 1;
 }
 
 void LuaManager::register_c_functions()
@@ -117,82 +153,67 @@ void LuaManager::register_c_functions()
     lua_pushcfunction(L,lua_broadcast_message);
     lua_setfield(L,-2,"broadcast");
 
+    lua_pushcfunction(L,kick_user_to_lua);
+    lua_setfield(L,-2,"kick_user");
+
     lua_setglobal(L,"Chat");
 }
 
-
-bool LuaManager::execute_command(const std::string& nickname, const std::string& raw_message)
+bool LuaManager::execute_command(const std::string& nickname, bool is_admin, const std::string& full_msg)
 {
-    std::vector<std::string>tokens=split_message(raw_message);
-
-    if (tokens.empty()||tokens[0].empty()||tokens[0][0]!='/')
+    std::vector<std::string>parts=split_message(full_msg);
+    if (parts.empty())
     {
         return false;
     }
 
-    std::string command_name=tokens[0];
+    std::string command=parts[0];
 
-    std::vector<std::string>args;
-    if (tokens.size()>1)
+    if (command.length()>0&&command[0]=='/')
     {
-        args.insert(args.end(),tokens.begin()+1,tokens.end());
+        command=command.substr(1);
     }
 
-    return execute_command(nickname,command_name,args);
-}
-
-
-bool LuaManager::execute_command(const std::string& nickname, const std::string& command, const std::vector<std::string>& args)
-{
-    std::lock_guard<std::mutex>lock(mtx);
-
-    std::string lua_func_name="lua_cmd_"+command.substr(1);
-    LOG_INFO("尝试调用 Lua 函数: " + lua_func_name);
-
+    std::string lua_func_name="lua_cmd_"+command;
     lua_getglobal(L,lua_func_name.c_str());
 
-   if (!lua_isfunction(L,-1))
-   {
-       LOG_ERROR("Lua function not found: " + lua_func_name);
-
-       lua_pop(L,1);
-
-       lua_getglobal(L,"_G");
-
-       lua_pushnil(L);
-        while (lua_next(L,-2)!=0)
-        {
-            if (lua_type(L,-2)==LUA_TSTRING)
-            {
-                const char* key=lua_tostring(L,-2);
-                if (key&&std::string(key).find("lua_cmd")!=std::string::npos)
-                {
-                    LOG_INFO("Lua 全局存在函数: " + std::string(key));
-                }
-            }
-            lua_pop(L,1);
-        }
+    if (!lua_isfunction(L,-1))
+    {
         lua_pop(L,1);
-       return false;
-   }
+        return false;
+    }
 
     lua_pushstring(L,nickname.c_str());
 
+    lua_pushboolean(L,is_admin);
+
     lua_newtable(L);
-    for (size_t i=0;i<args.size();++i)
+
+    for (size_t i=1;i<parts.size();++i)
     {
-        lua_pushnumber(L,i+1);
-        lua_pushstring(L,args[i].c_str());
+        lua_pushnumber(L,i);
+        lua_pushstring(L,parts[i].c_str());
         lua_settable(L,-3);
     }
 
-    if (lua_pcall(L,2,0,0)!=LUA_OK)
+    if (lua_pcall(L,3,1,0)!=LUA_OK)
     {
-        const char* error=lua_tostring(L,-1);
-        LOG_ERROR("执行 Lua 命令 "+command+ " 失败: " + std::string(error));
+        if (lua_isstring(L,-1))
+        {
+            LOG_ERROR("Lua 命令执行失败: " +std::string(lua_tostring(L,-1)));
+        }
         lua_pop(L,1);
-        return true;
+        return false;
     }
 
-    return true;
+    bool handled=false;
+    if (lua_isboolean(L,-1))
+    {
+        handled=lua_toboolean(L,-1);
+    }
+
+    lua_pop(L,1);
+    return handled;
 }
+
+

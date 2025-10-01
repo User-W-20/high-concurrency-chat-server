@@ -7,4 +7,8 @@ add_executable(client client.cpp)
 
 
 
-target_link_libraries(server PRIVATE ${LUA_LIBRARIES})
+target_link_libraries(server PRIVATE
+        ${LUA_LIBRARIES}
+        lua5.3
+
+)
