@@ -25,16 +25,16 @@
 constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
 constexpr int BUF_SIZE = 1024;
-constexpr int HEARTBEAT_TIMEOUT = 60;  // 心跳超时
+constexpr int HEARTBEAT_TIMEOUT = 60; // 心跳超时
 constexpr int EPOLL_TIMEOUT_MS = 1000;
 const std::string ADMIN_IP = "127.0.0.1";
 
 std::atomic<bool> running = true;
 
 using ServerCommandHandler =
-    std::function<std::string(const std::vector<std::string> &, int)>;
+std::function<std::string(const std::vector<std::string>&, int)>;
 
-void safe_print(const std::string &msg)
+void safe_print(const std::string& msg)
 {
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
@@ -47,15 +47,15 @@ void set_nonblocking(int fd)
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-void send_message_with_length(int fd, const std::string &message)
+void send_message_with_length(int fd, const std::string& message)
 {
     uint32_t net_len = htonl(message.size());
 
-    std::string full_msg(reinterpret_cast<const char *>(&net_len),
+    std::string full_msg(reinterpret_cast<const char*>(&net_len),
                          sizeof(net_len));
     full_msg += message;
 
-    const char *data = full_msg.data();
+    const char* data = full_msg.data();
     size_t total_len = full_msg.size();
     size_t bytes_sent = 0;
 
@@ -77,7 +77,7 @@ void send_message_with_length(int fd, const std::string &message)
     }
 }
 
-void disconnect_client(int fd, ServerContext &ctx)
+void disconnect_client(int fd, ServerContext& ctx)
 {
     std::string name = ctx.get_username(fd);
     std::string quit_msg = name + " 退出聊天室";
@@ -91,7 +91,7 @@ void disconnect_client(int fd, ServerContext &ctx)
     }
 }
 
-std::vector<std::string> split(const std::string &s)
+std::vector<std::string> split(const std::string& s)
 {
     std::vector<std::string> tokens;
     std::istringstream iss(s);
@@ -106,9 +106,9 @@ std::vector<std::string> split(const std::string &s)
 void sigint_hadler(int) { running = false; }
 
 void handle_message(
-    int fd, const std::string &msg, ServerContext &ctx,
-    const std::unordered_map<std::string, ServerCommandHandler> &admin_commands,
-    const std::unordered_map<std::string, ServerCommandHandler> &user_commands)
+    int fd, const std::string& msg, ServerContext& ctx,
+    const std::unordered_map<std::string, ServerCommandHandler>& admin_commands,
+    const std::unordered_map<std::string, ServerCommandHandler>& user_commands)
 {
     std::string nickname = ctx.get_username(fd);
     bool is_admin = false;
@@ -165,7 +165,7 @@ void handle_message(
             bool name_token = false;
             {
                 std::lock_guard<std::mutex> client_lock(ctx.clients_mtx);
-                for (const auto &pair : ctx.clients)
+                for (const auto& pair : ctx.clients)
                 {
                     if (pair.first < 0) continue;
                     if (pair.second.nickname == trimmed_msg)
@@ -196,52 +196,58 @@ void handle_message(
     if (trimmed_msg[0] == '/')
     {
         std::vector<std::string> args = split(trimmed_msg);
-         std::string command = args[0];
+        std::string command = args[0];
 
-        while (command.length()>1&&command[0]=='/'&&command[1]=='/')
+        while (command.length() > 1 && command[0] == '/' && command[1] == '/')
         {
-            command.erase(0,1);
+            command.erase(0, 1);
         }
-        args[0]=command;
+        args[0] = command;
 
         std::string reply_to_client;
-        bool command_executed=false;
+        bool command_executed = false;
 
-        auto user_cmd_iter=user_commands.find(command);
-        if (user_cmd_iter!=user_commands.end())
+        auto user_cmd_iter = user_commands.find(command);
+        if (user_cmd_iter != user_commands.end())
         {
-            reply_to_client=user_cmd_iter->second(args,fd);
-            command_executed=true;
+            reply_to_client = user_cmd_iter->second(args, fd);
+            command_executed = true;
         }
 
         else
         {
-            auto admin_cmd_iter=admin_commands.find(command);
-            if (admin_cmd_iter!=admin_commands.end())
+            auto admin_cmd_iter = admin_commands.find(command);
+            if (admin_cmd_iter != admin_commands.end())
             {
                 if (is_admin)
                 {
-                    reply_to_client=admin_cmd_iter->second(args,fd);
-                    command_executed=true;
-                }else
+                    reply_to_client = admin_cmd_iter->second(args, fd);
+                    command_executed = true;
+                }
+                else
                 {
-                    reply_to_client="错误：'" +command+"' 命令需要管理员权限。";
-                    command_executed=true;
+                    reply_to_client = "错误：'" + command + "' 命令需要管理员权限。";
+                    command_executed = true;
                 }
             }
         }
         safe_print("DEBUG: Client FD " + std::to_string(fd) +
-                  " (Nickname: " + nickname +
-                  ") C++ state is_admin=" + (is_admin ? "TRUE" : "FALSE") + "\n");
+                   " (Nickname: " + nickname +
+                   ") C++ state is_admin=" + (is_admin ? "TRUE" : "FALSE") +
+                   "\n");
 
         if (!command_executed)
         {
-            safe_print("DEBUG: Command '"+command+"' NOT found in C++ maps. Attempting Lua.\n");
+            safe_print(
+                "DEBUG: Command '" + command +
+                "' NOT found in C++ maps. Attempting Lua.\n");
 
-            if (LuaManager::getInstance().execute_command(nickname,is_admin,trimmed_msg))
+            if (LuaManager::getInstance().execute_command(
+                nickname, is_admin, trimmed_msg))
             {
-                safe_print("客户端[" + nickname + "] 执行 Lua 命令: " + command + "\n");
-                command_executed=true;
+                safe_print(
+                    "客户端[" + nickname + "] 执行 Lua 命令: " + command + "\n");
+                command_executed = true;
             }
         }
 
@@ -249,11 +255,12 @@ void handle_message(
         {
             if (!reply_to_client.empty())
             {
-                send_message_with_length(fd,reply_to_client);
+                send_message_with_length(fd, reply_to_client);
             }
-        }else
+        }
+        else
         {
-            reply_to_client="未知命令。";
+            reply_to_client = "未知命令。";
             send_message_with_length(fd, reply_to_client);
         }
     }
@@ -266,6 +273,7 @@ void handle_message(
         ctx.broadcast(out, fd);
     }
 }
+
 int main()
 {
     signal(SIGPIPE, SIG_IGN);
@@ -280,22 +288,25 @@ int main()
 
     ThreadPool pool(4);
 
-    auto sender = [](int fd, const std::string &message)
-    { send_message_with_length(fd, message); };
+    auto sender = [](int fd, const std::string& message)
+    {
+        send_message_with_length(fd, message);
+    };
 
     ServerContext ctx(pool, sender);
 
     try
     {
-        LuaManager &lua_manager=LuaManager::initializeInstance(ctx);
+        LuaManager& lua_manager = LuaManager::initializeInstance(ctx);
 
         if (!lua_manager.initialize())
         {
             LOG_FATAL("LuaManager 初始化失败 (加载 commands.lua 失败)，服务器退出。");
-            return  1;
+            return 1;
         }
         LOG_INFO("Lua 命令系统加载成功。");
-    }catch (const std::exception&e)
+    }
+    catch (const std::exception& e)
     {
         LOG_FATAL("LuaManager 初始化时发生致命错误: "+std::string(e.what()));
         return 1;
@@ -306,26 +317,28 @@ int main()
 
     // 非群组命令
     user_commands["/list"] =
-        [&ctx](const std::vector<std::string> &args, int fd)
-    {
-        std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-        std::string list_str = "在线用户：\n";
-        for (const auto &pair : ctx.clients)
+        [&ctx](const std::vector<std::string>& args, int fd)
         {
-            if (!pair.second.nickname.empty())
+            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+            std::string list_str = "在线用户：\n";
+            for (const auto& pair : ctx.clients)
             {
-                list_str += "fd=" + std::to_string(pair.first) +
-                            " nickname=" + pair.second.nickname + "\n";
+                if (!pair.second.nickname.empty())
+                {
+                    list_str += "fd=" + std::to_string(pair.first) +
+                        " nickname=" + pair.second.nickname + "\n";
+                }
             }
-        }
-        return list_str;
-    };
+            return list_str;
+        };
 
     user_commands["whoami"] =
-        [&ctx](const std::vector<std::string> &args, int fd)
-    { return "你的昵称是：" + ctx.get_username(fd) + "\n"; };
+        [&ctx](const std::vector<std::string>& args, int fd)
+        {
+            return "你的昵称是：" + ctx.get_username(fd) + "\n";
+        };
 
-    user_commands["/w"] = [&ctx](const std::vector<std::string> &args,
+    user_commands["/w"] = [&ctx](const std::vector<std::string>& args,
                                  int fd) -> std::string
     {
         if (args.size() < 3)
@@ -339,7 +352,7 @@ int main()
             return "无法获取您的昵称。\n";
         }
 
-        const   std::string& target_nickname = args[1];
+        const std::string& target_nickname = args[1];
         if (target_nickname == sender_nickname)
         {
             return "不能和自己私聊。\n";
@@ -359,7 +372,7 @@ int main()
         int target_fd = -1;
         {
             std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-            for (const auto &pair : ctx.clients)
+            for (const auto& pair : ctx.clients)
             {
                 if (pair.second.nickname == target_nickname)
                 {
@@ -383,110 +396,78 @@ int main()
     };
 
     user_commands["/help"] =
-        [&ctx](const std::vector<std::string> &args, int fd)
-    {
-        std::string help_msg =
-            "可用的命令：\n"
-            "/list - 列出所有在线用户\n"
-            "/w <昵称> <消息> - 向指定用户发送私聊消息\n"
-            "/whoami - 查看你的昵称\n"
-            "/quit - 退出聊天室\n"
-            "/help - 显示此帮助信息\n";
-
-        bool is_admin = false;
+        [&ctx](const std::vector<std::string>& args, int fd)
         {
-            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-            if (ctx.clients.count(fd))
-            {
-                is_admin = ctx.clients.at(fd).is_admin;
-            }
-        }
-        if (is_admin)
-        {
-            help_msg +=
-                "/kick <昵称> - 踢出指定用户\n"
-                "/create <群名> - 创建一个新群\n"
+            std::string help_msg =
+                "--- 可用的命令 ---\n"
+                "/list - 列出所有在线用户\n"
+                "/w <昵称> <消息> - 向指定用户发送私聊消息\n"
+                "/whoami - 查看你的昵称\n"
+                "/help - 显示此帮助信息\n"
+                "/create <群名> - 创建一个新群（您将成为群主）\n"
                 "/join <群名> - 加入一个群\n"
                 "/send <群名> <消息> - 向特定群发送消息\n"
-                "/listgroups - 列出所有群\n";
-        }
-        return help_msg;
-    };
+                "/listgroups - 列出所有群\n"
+                "/hello - Lua 脚本示例命令\n"
+                "/roll [max] - 掷骰子（Lua 脚本）\n"
+                "/quit - 退出聊天室\n";
 
-    user_commands["/quit"] =
-        [&ctx](const std::vector<std::string> &args, int fd)
-    {
-        std::string reply = "正在安全退出服务器，再见！\n";
-        send_message_with_length(fd, reply);
-        disconnect_client(fd, ctx);
-        return "";
-    };
-
-    admin_commands["/kick"]=[&ctx](const std::vector<std::string>&args,int fd)->std::string
-    {
-        if (args.size()<2)
-        {
-            return "用法: /kick <昵称>。\n";
-        }
-
-        const std::string& target_nickname=args[1];
-        if (target_nickname.empty())
-        {
-            return "请指定要踢出的用户昵称。\n";
-        }
-
-        int target_fd=-1;
-        {
-            std::lock_guard<std::mutex>lock(ctx.clients_mtx);
-            for (const auto&pair:ctx.clients)
+            bool is_server_admin = false;
             {
-                if (pair.second.nickname==target_nickname)
+                std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+                if (ctx.clients.count(fd))
                 {
-                    target_fd=pair.first;
-                    break;
+                    is_server_admin = ctx.clients.at(fd).is_admin;
                 }
             }
-        }
 
-        if (target_fd!=-1)
-        {
-            std::string admin_name=ctx.get_username(fd);
-            std::stringstream ss;
-            ss<<admin_name<<" 将 " <<target_nickname<< " 踢出聊天室。\n";
-            ctx.broadcast(ss.str(),fd);
-            std::string reply_to_kick="您已被管理员踢出聊天室。\n";
-            send_message_with_length(target_fd,reply_to_kick);
-            disconnect_client(target_fd,ctx);
-            return "用户 " + target_nickname + " 已被踢出。\n";
-        }else
-        {
-            return "用户 '" + target_nickname + "' 不在线。\n";
-        }
-    };
+            if (is_server_admin)
+            {
+                help_msg +=
+                    "\n--- 服务器管理员命令（全局）---\n"
+                    "/kick <昵称> - 踢出指定用户（全局）\n";
+            }
 
-    admin_commands["/create"]=[&ctx](const std::vector<std::string>&args,int fd)->std::string
+            help_msg +=
+                "\n--- 群组管理命令（需群主身份）---\n"
+                "/groupkick <群名> <昵称> - 将群成员踢出群组\n"
+                "-----------------------\n";
+            return help_msg;
+        };
+
+    user_commands["/quit"] =
+        [&ctx](const std::vector<std::string>& args, int fd)
+        {
+            std::string reply = "正在安全退出服务器，再见！\n";
+            send_message_with_length(fd, reply);
+            disconnect_client(fd, ctx);
+            return "";
+        };
+
+    user_commands["/create"] = [&ctx](const std::vector<std::string>& args,
+                                      int fd)-> std::string
     {
-        std::string username=ctx.get_username(fd);
+        std::string username = ctx.get_username(fd);
         if (username.empty())
         {
             return "请先设置昵称。\n";
         }
-        return ctx.group_manager->handle_create_group(username,args);
+        return ctx.group_manager->handle_create_group(username, args);
     };
 
-    admin_commands["/join"] = [&ctx](const std::vector<std::string> &args,
-                                 int fd) -> std::string
+    user_commands["/join"] = [&ctx](const std::vector<std::string>& args,
+                                    int fd) -> std::string
     {
-        std::string username=ctx.get_username(fd);
+        std::string username = ctx.get_username(fd);
         if (username.empty())
         {
             return "请先设置昵称。\n";
         }
-        return  ctx.group_manager->handle_join_group(username,args);
+        return ctx.group_manager->handle_join_group(username, args);
     };
 
-    admin_commands["/send"] = [&ctx](const std::vector<std::string> &args,
-                                 int fd) -> std::string
+    user_commands["/send"] = [&ctx](const std::vector<std::string>& args,
+                                    int fd) -> std::string
     {
         std::string username = ctx.get_username(fd);
         if (username.empty())
@@ -496,8 +477,8 @@ int main()
         return ctx.group_manager->handle_send_message(username, args);
     };
 
-    admin_commands["/listgroups"] = [&ctx](const std::vector<std::string> &args,
-                                       int fd) -> std::string
+    user_commands["/listgroups"] = [&ctx](const std::vector<std::string>& args,
+                                          int fd) -> std::string
     {
         std::string username = ctx.get_username(fd);
         if (username.empty())
@@ -505,6 +486,63 @@ int main()
             return "请先设置昵称。\n";
         }
         return ctx.group_manager->handle_list_groups();
+    };
+
+    user_commands["/groupkick"] = [&ctx](const std::vector<std::string>& args,
+                                         int fd)-> std::string
+    {
+        std::string username = ctx.get_username(fd);
+
+        if (username.empty())
+        {
+            return "请先设置昵称。\n";
+        }
+
+        return ctx.group_manager->handle_group_kick(username, args);
+    };
+
+    admin_commands["/kick"] = [&ctx](const std::vector<std::string>& args,
+                                     int fd)-> std::string
+    {
+        if (args.size() < 2)
+        {
+            return "用法: /kick <昵称>。\n";
+        }
+
+        const std::string& target_nickname = args[1];
+        if (target_nickname.empty())
+        {
+            return "请指定要踢出的用户昵称。\n";
+        }
+
+        int target_fd = -1;
+        {
+            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+            for (const auto& pair : ctx.clients)
+            {
+                if (pair.second.nickname == target_nickname)
+                {
+                    target_fd = pair.first;
+                    break;
+                }
+            }
+        }
+
+        if (target_fd != -1)
+        {
+            std::string admin_name = ctx.get_username(fd);
+            std::stringstream ss;
+            ss << admin_name << " 将 " << target_nickname << " 踢出聊天室。\n";
+            ctx.broadcast(ss.str(), fd);
+            std::string reply_to_kick = "您已被管理员踢出聊天室。\n";
+            send_message_with_length(target_fd, reply_to_kick);
+            disconnect_client(target_fd, ctx);
+            return "用户 " + target_nickname + " 已被踢出。\n";
+        }
+        else
+        {
+            return "用户 '" + target_nickname + "' 不在线。\n";
+        }
     };
 
     epoll_event events[MAX_EVENTS];
@@ -517,7 +555,7 @@ int main()
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    if (bind(server_fd, (sockaddr *)&addr, sizeof(addr)) == -1)
+    if (bind(server_fd, (sockaddr*)&addr, sizeof(addr)) == -1)
     {
         perror("bind");
         return -1;
@@ -584,11 +622,11 @@ int main()
             {
                 std::lock_guard<std::mutex> lock(ctx.clients_mtx);
                 auto now = std::chrono::steady_clock::now();
-                for (const auto &pair : ctx.clients)
+                for (const auto& pair : ctx.clients)
                 {
                     if (std::chrono::duration_cast<std::chrono::seconds>(
                             now - pair.second.last_activity)
-                            .count() > HEARTBEAT_TIMEOUT)
+                        .count() > HEARTBEAT_TIMEOUT)
                     {
                         inactive_fds.push_back(pair.first);
                     }
@@ -631,7 +669,7 @@ int main()
             {
                 sockaddr_in client_addr{};
                 socklen_t client_addr_len = sizeof(client_addr);
-                int client_fd = accept(server_fd, (sockaddr *)&client_addr,
+                int client_fd = accept(server_fd, (sockaddr*)&client_addr,
                                        &client_addr_len);
 
                 if (client_fd == -1)
@@ -727,13 +765,11 @@ int main()
     safe_print("正在关闭所有客户端连接...\n");
     {
         std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-        for (const auto &pair : ctx.clients)
+        for (const auto& pair : ctx.clients)
         {
             close(pair.first);
         }
     }
-
-
 
     close(server_fd);
     close(epoll_fd);

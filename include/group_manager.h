@@ -10,15 +10,24 @@
 #include <vector>
 #include <mutex>
 #include <functional>
+#include "ServerContext.h"
 
-#include "client.h"
 
 using MessageSender=std::function<void(int ,const std::string&)>;
+
+struct Group
+{
+    std::string name;
+
+    std::string owner_nickname;
+
+    std::unordered_set<std::string>members;
+};
 
 class GroupManager
 {
    public:
-    explicit GroupManager(MessageSender sender, std::unordered_map<int,Client>&clients_map);
+    explicit GroupManager(MessageSender sender, const ServerContext&ctx_ref);
     ~GroupManager()=default;
 
     std::string handle_create_group(const std::string& username, const std::vector<std::string>& parts);
@@ -26,13 +35,14 @@ class GroupManager
     std::string handle_send_message(const std::string& username, const std::vector<std::string>& parts);
     std::string handle_list_groups();
     void remove_client_from_groups(const std::string&username);
+    std::string handle_group_kick(const std::string &kicker_nickname,const std::vector<std::string>&parts);
    private:
-    std::unordered_map<std::string,std::unordered_set<std::string>>groups;
+    std::unordered_map<std::string,Group>groups;
     std::mutex mtx;
 
     MessageSender message_sender;
 
-    const std::unordered_map<int,Client>&clients_ref;
+    const ServerContext&ctx_ref;
 
     static std::vector<std::string>split(const std::string&s,char delimiter);
 };
