@@ -36,6 +36,7 @@ class GroupManager
     std::string handle_list_groups();
     void remove_client_from_groups(const std::string&username);
     std::string handle_group_kick(const std::string &kicker_nickname,const std::vector<std::string>&parts);
+    std::string handle_group_leave(const std::string& username,const std::vector<std::string>&parts);
    private:
     std::unordered_map<std::string,Group>groups;
     std::mutex mtx;

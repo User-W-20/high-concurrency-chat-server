@@ -369,24 +369,14 @@ int main()
             whisper_message.pop_back();
         }
 
-        int target_fd = -1;
-        {
-            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-            for (const auto& pair : ctx.clients)
-            {
-                if (pair.second.nickname == target_nickname)
-                {
-                    target_fd = pair.first;
-                    break;
-                }
-            }
-        }
+        int target_fd = ctx.get_fd_by_nickname(target_nickname);
 
         if (target_fd != -1)
         {
             std::string whisper_reply_to_target =
                 "来自 " + sender_nickname + " 的私聊：" + whisper_message;
-            send_message_with_length(target_fd, whisper_reply_to_target);
+
+            send_message_with_length(target_fd, whisper_reply_to_target + "\n");
             return "已向 " + target_nickname + " 发送私聊消息。\n";
         }
         else
@@ -410,7 +400,8 @@ int main()
                 "/listgroups - 列出所有群\n"
                 "/hello - Lua 脚本示例命令\n"
                 "/roll [max] - 掷骰子（Lua 脚本）\n"
-                "/quit - 退出聊天室\n";
+                "/quit - 退出聊天室\n"
+                "/leave - 退出群聊\n";
 
             bool is_server_admin = false;
             {
@@ -501,6 +492,18 @@ int main()
         return ctx.group_manager->handle_group_kick(username, args);
     };
 
+    user_commands["/leave"] = [&ctx](const std::vector<std::string>& args,
+                                     int fd)-> std::string
+    {
+        std::string username = ctx.get_username(fd);
+        if (username.empty())
+        {
+            return "请先设置昵称。\n";
+        }
+
+        return ctx.group_manager->handle_group_leave(username, args);
+    };
+
     admin_commands["/kick"] = [&ctx](const std::vector<std::string>& args,
                                      int fd)-> std::string
     {
@@ -510,33 +513,23 @@ int main()
         }
 
         const std::string& target_nickname = args[1];
-        if (target_nickname.empty())
-        {
-            return "请指定要踢出的用户昵称。\n";
-        }
 
-        int target_fd = -1;
-        {
-            std::lock_guard<std::mutex> lock(ctx.clients_mtx);
-            for (const auto& pair : ctx.clients)
-            {
-                if (pair.second.nickname == target_nickname)
-                {
-                    target_fd = pair.first;
-                    break;
-                }
-            }
-        }
+        int target_fd = ctx.get_fd_by_nickname(target_nickname);
 
         if (target_fd != -1)
         {
             std::string admin_name = ctx.get_username(fd);
+
             std::stringstream ss;
             ss << admin_name << " 将 " << target_nickname << " 踢出聊天室。\n";
+
             ctx.broadcast(ss.str(), fd);
+
             std::string reply_to_kick = "您已被管理员踢出聊天室。\n";
             send_message_with_length(target_fd, reply_to_kick);
+
             disconnect_client(target_fd, ctx);
+
             return "用户 " + target_nickname + " 已被踢出。\n";
         }
         else
