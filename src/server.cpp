@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
+#include <stdexcept>
 #include "../include/Logger.h"
 #include "../include/ServerContext.h"
 #include "../include/client.h"
@@ -752,6 +752,17 @@ int main()
                 }
             }
         }
+    }
+
+    LOG_INFO("服务器关闭流程：保存群组数据...");
+    try
+    {
+        ctx.group_manager->save_groups_to_file(JSON_FILE);
+        LOG_INFO("群组数据保存完成。");
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("致命错误：保存群组数据失败！数据可能丢失。");
     }
 
     // 关闭所有客户端

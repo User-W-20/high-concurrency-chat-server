@@ -4,8 +4,12 @@
 #include "../include/group_manager.h"
 #include <functional>
 #include <sstream>
-
+#include <fstream>
 #include "Logger.h"
+#include "../include/json.hpp"
+
+using json=nlohmann::json;
+
 
 
 GroupManager::GroupManager(MessageSender sender,
@@ -311,3 +315,71 @@ std::string GroupManager::handle_group_leave(const std::string& username, const 
         return "您已成功退出群组 '" + group_name + "'。\n";
     }
 }
+
+void GroupManager::load_groups_from_file(const std::string& filename)
+{
+    std::lock_guard<std::mutex>lock(mtx);
+
+    std::ifstream i(filename.c_str());
+
+    if (!i.is_open())
+    {
+        LOG_WARNING("未找到群组数据文件 (" +filename+")，以空群组列表启动。");
+        return;
+    }
+
+    try
+    {
+        json root_json;
+        i>>root_json;
+        i.close();
+
+        groups=root_json.at("groups").get<std::unordered_map<std::string,Group>>();
+
+        std::stringstream log_ss;
+        log_ss<< "成功从文件加载 "<<groups.size()<<" 个群组数据。";
+        LOG_INFO(log_ss.str());
+    }catch (const json::exception&e)
+    {
+        std::stringstream err_ss;
+        err_ss<<"加载群组数据失败，JSON 解析或数据结构错误: "<<e.what();
+        groups.clear();
+    }catch (const std::exception&e)
+    {
+        std::stringstream err_ss;
+        err_ss<< "加载群组数据失败: "<<e.what();
+        LOG_ERROR(err_ss.str());
+        groups.clear();
+    }
+}
+
+
+void GroupManager::save_groups_to_file(const std::string& filename) const
+{
+    std::lock_guard<std::mutex>lock(mtx);
+
+    json root_json;
+
+    root_json["groups"]=groups;
+
+    std::ofstream o(filename.c_str());
+
+    if (o.is_open())
+    {
+        try
+        {
+            o<<root_json.dump(4);
+            o.close();
+            LOG_INFO("群组数据成功保存到: "+filename);
+        }catch (const std::exception&e)
+        {
+            std::stringstream err_ss;
+            err_ss<<"写入群组数据时发生内部错误: "<<e.what();
+            LOG_ERROR(err_ss.str());
+        }
+    }else
+    {
+        LOG_ERROR("无法打开文件进行写入: "+filename);
+    }
+}
+

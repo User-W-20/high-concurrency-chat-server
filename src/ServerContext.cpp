@@ -12,6 +12,13 @@
 ServerContext::ServerContext(ThreadPool& p, const MessageSender& sender)
     : pool(p), group_manager(std::make_unique<GroupManager>(sender, *this))
 {
+    try
+    {
+        group_manager->load_groups_from_file(JSON_FILE);
+    }catch (const std::exception&e)
+    {
+        LOG_ERROR("FATAL: 无法加载群组数据，但服务器将尝试空数据启动。");
+    }
 }
 
 std::string ServerContext::get_username(int fd)
