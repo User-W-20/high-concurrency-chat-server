@@ -19,7 +19,7 @@ using MessageSender = std::function<void(int, const std::string&)>;
 
 using json = nlohmann::json;
 
-inline const std::string JSON_FILE="groups_data.json";
+inline const std::string JSON_FILE = "groups_data.json";
 
 struct Group
 {

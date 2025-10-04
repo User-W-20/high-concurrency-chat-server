@@ -21,13 +21,13 @@
 #include "../include/group_manager.h"
 #include "../include/threadpool.h"
 #include "../include/LuaManager.h"
+#include "../include/UserManager.h"
 
 constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
 constexpr int BUF_SIZE = 1024;
 constexpr int HEARTBEAT_TIMEOUT = 60; // 心跳超时
 constexpr int EPOLL_TIMEOUT_MS = 1000;
-const std::string ADMIN_IP = "127.0.0.1";
 
 std::atomic<bool> running = true;
 
@@ -81,7 +81,12 @@ void disconnect_client(int fd, ServerContext& ctx)
 {
     std::string name = ctx.get_username(fd);
     std::string quit_msg = name + " 退出聊天室";
-    safe_print(quit_msg + "\n");
+
+    if (!name.empty())
+    {
+        safe_print(quit_msg + "\n");
+        ctx.broadcast(quit_msg, fd);
+    }
 
     ctx.group_manager->remove_client_from_groups(name);
 
@@ -130,65 +135,75 @@ void handle_message(
 
     if (nickname.empty())
     {
-        if (trimmed_msg == ctx.admin_token)
-        {
-            bool is_admin_ip = false;
-            {
-                std::lock_guard<std::mutex> client_lock(ctx.clients_mtx);
-                auto it = ctx.clients.find(fd);
-                if (it != ctx.clients.end() && it->second.ip == ADMIN_IP)
-                {
-                    it->second.is_admin = true;
-                    is_admin_ip = true;
-                }
-            }
+        std::vector<std::string> args = split(trimmed_msg);
 
-            if (is_admin_ip)
+        if (args.size() < 3)
+        {
+            send_message_with_length(
+                fd, "请先使用 /register <用户名> <密码> 或 /login <用户名> <密码>。");
+            return;
+        }
+
+        std::string command = args[0];
+
+        std::transform(command.begin(), command.end(), command.begin(),
+                       ::tolower);
+
+        const std::string& user = args[1];
+        const std::string& pass = args[2];
+
+        if (command == "/register")
+        {
+            if (ctx.user_manager->register_user(user, pass))
             {
-                ctx.set_username(fd, ctx.admin_nickname);
-                ctx.admin_token.clear();
-                std::string reply = "恭喜，您已成为管理员！！您的昵称是：" +
-                                    ctx.admin_nickname + "\n";
-                send_message_with_length(fd, reply);
-                safe_print("客户端 " + std::to_string(fd) +
-                           " 已验证为管理员，并设置昵称: " +
-                           ctx.admin_nickname + "\n");
+                send_message_with_length(fd, "注册成功! 请使用 /login 登录。");
             }
             else
             {
-                std::string reply = "仅限本地管理员登录。\n";
-                send_message_with_length(fd, reply);
+                send_message_with_length(fd, "注册失败: 用户名已被占用或格式错误。");
+            }
+        }
+        else if (command == "/login")
+        {
+            if (ctx.user_manager->validate_login(user, pass))
+            {
+                if (ctx.get_fd_by_nickname(user) != -1)
+                {
+                    send_message_with_length(fd, "错误: 该用户已在别处登录。");
+                    return;
+                }
+
+                ctx.set_username(fd, user);
+
+                const User* logged_user = ctx.user_manager->get_user(user);
+
+                {
+                    std::lock_guard<std::mutex> lock(ctx.clients_mtx);
+                    if (ctx.clients.count(fd))
+                    {
+                        ctx.clients.at(fd).is_admin = logged_user
+                            ? logged_user->is_admin
+                            : false;
+                    }
+                }
+
+                std::string welcome_msg = "登录成功! 欢迎回来, " + user;
+                if (logged_user && logged_user->is_admin)
+                {
+                    welcome_msg += " (管理员)";
+                }
+
+                send_message_with_length(fd, welcome_msg);
+                ctx.broadcast(user + " 加入聊天室", fd);
+            }
+            else
+            {
+                send_message_with_length(fd, "登录失败: 用户名或密码错误。");
             }
         }
         else
         {
-            bool name_token = false;
-            {
-                std::lock_guard<std::mutex> client_lock(ctx.clients_mtx);
-                for (const auto& pair : ctx.clients)
-                {
-                    if (pair.first < 0) continue;
-                    if (pair.second.nickname == trimmed_msg)
-                    {
-                        name_token = true;
-                        break;
-                    }
-                }
-            }
-
-            if (name_token)
-            {
-                std::string reply =
-                    "Error: 昵称 '" + trimmed_msg + "' 已被占用。\n";
-                send_message_with_length(fd, reply);
-            }
-            else
-            {
-                ctx.set_username(fd, trimmed_msg);
-                std::string join_msg = trimmed_msg + " 加入聊天室";
-                safe_print(join_msg + "\n");
-                ctx.broadcast(join_msg, fd);
-            }
+            send_message_with_length(fd, "未知命令。请先使用 /register 或 /login。");
         }
         return;
     }
@@ -295,6 +310,29 @@ int main()
 
     ServerContext ctx(pool, sender);
 
+    const std::string USER_FILE = "users_data.json";
+    const std::string GROUP_FILE = "groups_data.json";
+
+    try
+    {
+        ctx.user_manager->load_users_from_file(USER_FILE);
+        LOG_INFO("成功加载用户数据。");
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("加载用户数据失败: "<<e.what()<<"。将从空状态启动。");
+    }
+
+    try
+    {
+        ctx.group_manager->load_groups_from_file(GROUP_FILE);
+        LOG_INFO("成功加载群组数据。");
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("加载群组数据失败: " << e.what() << "。将从空状态启动。");
+    }
+
     try
     {
         LuaManager& lua_manager = LuaManager::initializeInstance(ctx);
@@ -389,6 +427,9 @@ int main()
         [&ctx](const std::vector<std::string>& args, int fd)
         {
             std::string help_msg =
+                "--- 认证命令 ---\n"
+                "/register <用户> <密码> - 注册新用户\n"
+                "/login <用户> <密码> - 登录\n"
                 "--- 可用的命令 ---\n"
                 "/list - 列出所有在线用户\n"
                 "/w <昵称> <消息> - 向指定用户发送私聊消息\n"
@@ -580,13 +621,8 @@ int main()
     }
 
     ctx.epoll_fd = epoll_fd;
-    const std::string ADMIN_TOKEN = "admin123";
-    const std::string ADMIN_NICKNAME = "admin";
-    ctx.admin_nickname = ADMIN_NICKNAME;
-    ctx.admin_token = ADMIN_TOKEN;
 
     LOG_INFO("服务器启动，等待客户端连接...\n");
-    safe_print("管理员口令已生成: " + ctx.admin_token + "\n");
 
     while (running)
     {
@@ -754,7 +790,18 @@ int main()
         }
     }
 
-    LOG_INFO("服务器关闭流程：保存群组数据...");
+    LOG_INFO("服务器关闭流程：保存数据...");
+
+    try
+    {
+        ctx.user_manager->save_users_to_file(USER_FILE);
+        LOG_INFO("用户数据保存完成。");
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("致命错误：保存用户数据失败！数据可能丢失。错误: " << e.what());
+    }
+
     try
     {
         ctx.group_manager->save_groups_to_file(JSON_FILE);
@@ -762,7 +809,7 @@ int main()
     }
     catch (const std::exception& e)
     {
-        LOG_ERROR("致命错误：保存群组数据失败！数据可能丢失。");
+        LOG_ERROR("致命错误：保存群组数据失败！数据可能丢失。"<<e.what());
     }
 
     // 关闭所有客户端

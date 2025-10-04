@@ -13,16 +13,16 @@
 
 class ThreadPool
 {
-   public:
+public:
     explicit ThreadPool(size_t n);
 
     ~ThreadPool();
 
     void enqueue(std::function<void()> task);
 
-   private:
+private:
     std::vector<std::thread> workers;
-    std::queue<std::function<void()> > tasks;
+    std::queue<std::function<void()>> tasks;
 
     std::mutex mtx;
     std::condition_variable cv;

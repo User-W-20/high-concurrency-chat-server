@@ -7,17 +7,24 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+
 #include "Logger.h"
+#include "../include/UserManager.h"
 
 ServerContext::ServerContext(ThreadPool& p, const MessageSender& sender)
-    : pool(p), group_manager(std::make_unique<GroupManager>(sender, *this))
+    : pool(p),
+      user_manager(std::make_unique<UserManager>()),
+      group_manager(std::make_unique<GroupManager>(sender, *this))
+
 {
     try
     {
         group_manager->load_groups_from_file(JSON_FILE);
-    }catch (const std::exception&e)
+    }
+    catch (const std::exception& e)
     {
-        LOG_ERROR("FATAL: 无法加载群组数据，但服务器将尝试空数据启动。");
+        LOG_ERROR("FATAL: 无法加载群组数据，但服务器将尝试空数据启动。"<<e.what());
     }
 }
 
@@ -40,10 +47,12 @@ void ServerContext::set_username(int fd, const std::string& username)
     if (it != clients.end())
     {
         it->second.nickname = username;
-        if (username != this->admin_nickname)
-        {
-            it->second.is_admin = false;
-        }
+
+        const User* user_data = user_manager->get_user(username);
+
+        it->second.is_admin = (user_data != nullptr)
+                                  ? user_data->is_admin
+                                  : false;
     }
 }
 

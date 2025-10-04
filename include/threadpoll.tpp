@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "threadpool.h"
+
 inline ThreadPool::ThreadPool(size_t n) : stop(false)
 {
     for (size_t i = 0; i < n; i++)
@@ -24,7 +25,7 @@ inline ThreadPool::~ThreadPool()
 
     cv.notify_all();
 
-    for (auto &worker : workers)
+    for (auto& worker : workers)
     {
         if (worker.joinable())
         {
@@ -65,7 +66,7 @@ inline void ThreadPool::worker_loop()
         {
             task();
         }
-        catch (const std::exception &e)
+        catch (const std::exception& e)
         {
             std::cerr << "ThreadPool caught exception: " << e.what() << "\n";
         }

@@ -8,13 +8,12 @@
 #include "Logger.h"
 #include "../include/json.hpp"
 
-using json=nlohmann::json;
-
+using json = nlohmann::json;
 
 
 GroupManager::GroupManager(MessageSender sender,
-                           const ServerContext&ctx_ref) :
-    message_sender(std::move(sender)),ctx_ref(ctx_ref)
+                           const ServerContext& ctx_ref) :
+    message_sender(std::move(sender)), ctx_ref(ctx_ref)
 {
 }
 
@@ -155,11 +154,11 @@ std::string GroupManager::handle_send_message(
 
         for (const std::string& member_name : group.members)
         {
-            int member_fd=ctx_ref.get_fd_by_nickname(member_name);
+            int member_fd = ctx_ref.get_fd_by_nickname(member_name);
 
-            if (member_fd!=-1)
+            if (member_fd != -1)
             {
-                message_sender(member_fd,full_message+"\n");
+                message_sender(member_fd, full_message + "\n");
             }
         }
         return "";
@@ -207,109 +206,121 @@ void GroupManager::remove_client_from_groups(const std::string& username)
     }
 }
 
-std::string GroupManager::handle_group_kick(const std::string& kicker_nickname, const std::vector<std::string>& parts)
+std::string GroupManager::handle_group_kick(const std::string& kicker_nickname,
+                                            const std::vector<std::string>&
+                                            parts)
 {
-    if (parts.size()<3)
+    if (parts.size() < 3)
     {
         return "用法: /groupkick <群名> <昵称>。\n";
     }
 
-    const std::string& group_name=parts[1];
-    const std::string& victim_nickname=parts[2];
+    const std::string& group_name = parts[1];
+    const std::string& victim_nickname = parts[2];
 
-    std::lock_guard<std::mutex>lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
 
-    auto group_it=groups.find(group_name);
+    auto group_it = groups.find(group_name);
 
-    if (group_it==groups.end())
+    if (group_it == groups.end())
     {
         return "错误：群组 '" + group_name + "' 不存在。\n";
     }
 
-    Group& group=group_it->second;
+    Group& group = group_it->second;
 
-    if (group.owner_nickname!=kicker_nickname)
+    if (group.owner_nickname != kicker_nickname)
     {
         return "错误：您不是群组 '" + group_name + "' 的群主，无权执行此操作。\n";
     }
 
-    if (kicker_nickname==victim_nickname)
+    if (kicker_nickname == victim_nickname)
     {
         return "错误：群主不能踢自己。\n";
     }
 
-    auto member_it=group.members.find(victim_nickname);
-    if (member_it==group.members.end())
+    auto member_it = group.members.find(victim_nickname);
+    if (member_it == group.members.end())
     {
-        return "错误：用户 '" + victim_nickname + "' 不是群组 '" + group_name + "' 的成员。\n";
+        return "错误：用户 '" + victim_nickname + "' 不是群组 '" + group_name +
+               "' 的成员。\n";
     }
 
     group.members.erase(member_it);
 
-    LOG_INFO("群主 [" + kicker_nickname + "] 将 [" + victim_nickname + "] 踢出群组 [" + group_name + "]");
+    LOG_INFO(
+        "群主 [" + kicker_nickname + "] 将 [" + victim_nickname + "] 踢出群组 [" +
+        group_name + "]");
 
-    int victim_fd=ctx_ref.get_fd_by_nickname(victim_nickname);
+    int victim_fd = ctx_ref.get_fd_by_nickname(victim_nickname);
 
-    if (victim_fd!=-1)
+    if (victim_fd != -1)
     {
-        message_sender(victim_fd, "您已被群主 [" + kicker_nickname + "] 踢出群组 [" + group_name + "]。\n");
+        message_sender(victim_fd,
+                       "您已被群主 [" + kicker_nickname + "] 踢出群组 [" + group_name +
+                       "]。\n");
     }
 
     return "已将用户 '" + victim_nickname + "' 踢出群组 '" + group_name + "'。\n";
 }
 
 
-std::string GroupManager::handle_group_leave(const std::string& username, const std::vector<std::string>& parts)
+std::string GroupManager::handle_group_leave(const std::string& username,
+                                             const std::vector<std::string>&
+                                             parts)
 {
-    if (parts.size()<2)
+    if (parts.size() < 2)
     {
         return "用法: /leave <群名>\n";
     }
 
-    const std::string &group_name=parts[1];
+    const std::string& group_name = parts[1];
 
-    std::lock_guard<std::mutex>lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
 
-    auto group_it=groups.find(group_name);
-    if (group_it==groups.end())
+    auto group_it = groups.find(group_name);
+    if (group_it == groups.end())
     {
         return "错误：群组 '" + group_name + "' 不存在。\n";
     }
 
-    Group & group=group_it->second;
+    Group& group = group_it->second;
 
-    auto member_it=group.members.find(username);
-    if (member_it==group.members.end())
+    auto member_it = group.members.find(username);
+    if (member_it == group.members.end())
     {
         return "错误：您不是群组 '" + group_name + "' 的成员。\n";
     }
 
-    if (group.owner_nickname==username)
+    if (group.owner_nickname == username)
     {
-        std::string broadcast_msg="【系统】群主 ["+username+"] 离开了群组 ["+group_name+ "]。群组已解散。\n";
+        std::string broadcast_msg =
+            "【系统】群主 [" + username + "] 离开了群组 [" + group_name + "]。群组已解散。\n";
 
-        for (const std::string &member_name:group.members)
+        for (const std::string& member_name : group.members)
         {
-            int member_fd=ctx_ref.get_fd_by_nickname(member_name);
-            if (member_fd!=-1)
+            int member_fd = ctx_ref.get_fd_by_nickname(member_name);
+            if (member_fd != -1)
             {
-                message_sender(member_fd,broadcast_msg);
+                message_sender(member_fd, broadcast_msg);
             }
         }
         groups.erase(group_it);
         return "您已成功退出群组 '" + group_name + "'，群组已解散。\n";
-    }else
+    }
+    else
     {
         group.members.erase(member_it);
 
-        std::string broadcast_msg= "【系统】用户 ["+username+ "] 离开了群组 ["+group_name+ "]。\n";
+        std::string broadcast_msg =
+            "【系统】用户 [" + username + "] 离开了群组 [" + group_name + "]。\n";
 
-        for (const std::string&member_name:group.members)
+        for (const std::string& member_name : group.members)
         {
-            int member_fd=ctx_ref.get_fd_by_nickname(member_name);
-            if (member_fd!=-1)
+            int member_fd = ctx_ref.get_fd_by_nickname(member_name);
+            if (member_fd != -1)
             {
-                message_sender(member_fd,broadcast_msg);
+                message_sender(member_fd, broadcast_msg);
             }
         }
         return "您已成功退出群组 '" + group_name + "'。\n";
@@ -318,7 +329,7 @@ std::string GroupManager::handle_group_leave(const std::string& username, const 
 
 void GroupManager::load_groups_from_file(const std::string& filename)
 {
-    std::lock_guard<std::mutex>lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
 
     std::ifstream i(filename.c_str());
 
@@ -331,23 +342,26 @@ void GroupManager::load_groups_from_file(const std::string& filename)
     try
     {
         json root_json;
-        i>>root_json;
+        i >> root_json;
         i.close();
 
-        groups=root_json.at("groups").get<std::unordered_map<std::string,Group>>();
+        groups = root_json.at("groups").get<std::unordered_map<
+            std::string, Group>>();
 
         std::stringstream log_ss;
-        log_ss<< "成功从文件加载 "<<groups.size()<<" 个群组数据。";
+        log_ss << "成功从文件加载 " << groups.size() << " 个群组数据。";
         LOG_INFO(log_ss.str());
-    }catch (const json::exception&e)
+    }
+    catch (const json::exception& e)
     {
         std::stringstream err_ss;
-        err_ss<<"加载群组数据失败，JSON 解析或数据结构错误: "<<e.what();
+        err_ss << "加载群组数据失败，JSON 解析或数据结构错误: " << e.what();
         groups.clear();
-    }catch (const std::exception&e)
+    }
+    catch (const std::exception& e)
     {
         std::stringstream err_ss;
-        err_ss<< "加载群组数据失败: "<<e.what();
+        err_ss << "加载群组数据失败: " << e.what();
         LOG_ERROR(err_ss.str());
         groups.clear();
     }
@@ -356,11 +370,11 @@ void GroupManager::load_groups_from_file(const std::string& filename)
 
 void GroupManager::save_groups_to_file(const std::string& filename) const
 {
-    std::lock_guard<std::mutex>lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
 
     json root_json;
 
-    root_json["groups"]=groups;
+    root_json["groups"] = groups;
 
     std::ofstream o(filename.c_str());
 
@@ -368,18 +382,19 @@ void GroupManager::save_groups_to_file(const std::string& filename) const
     {
         try
         {
-            o<<root_json.dump(4);
+            o << root_json.dump(4);
             o.close();
             LOG_INFO("群组数据成功保存到: "+filename);
-        }catch (const std::exception&e)
+        }
+        catch (const std::exception& e)
         {
             std::stringstream err_ss;
-            err_ss<<"写入群组数据时发生内部错误: "<<e.what();
+            err_ss << "写入群组数据时发生内部错误: " << e.what();
             LOG_ERROR(err_ss.str());
         }
-    }else
+    }
+    else
     {
         LOG_ERROR("无法打开文件进行写入: "+filename);
     }
 }
-

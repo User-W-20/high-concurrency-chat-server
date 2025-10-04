@@ -19,7 +19,7 @@ struct ServerContext;
 class LuaManager
 {
 public:
-    static LuaManager& initializeInstance(ServerContext&ctx);
+    static LuaManager& initializeInstance(ServerContext& ctx);
 
     static LuaManager& getInstance();
 
@@ -28,12 +28,13 @@ public:
 
     bool initialize();
 
-    [[nodiscard]] ServerContext & getServerContext() const
+    [[nodiscard]] ServerContext& getServerContext() const
     {
-        return  ctx_ref;
+        return ctx_ref;
     }
 
-    bool execute_command(const std::string &nickname,bool is_admin,const std::string&full_msg);
+    bool execute_command(const std::string& nickname, bool is_admin,
+                         const std::string& full_msg);
     ~LuaManager();
 
 private:
@@ -48,9 +49,8 @@ private:
     lua_State* L;
 
     std::mutex mtx;
-
 };
 
 
-extern  LuaManager* global_lua_manager_instance;
+extern LuaManager* global_lua_manager_instance;
 #endif  // LITECHAT_LUAMANAGER_H

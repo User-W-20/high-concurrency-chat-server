@@ -15,40 +15,42 @@
 
 class ThreadPool;
 class GroupManager;
+class UserManager;
 
-using MessageSender=std::function<void(int,const std::string&)>;
+using MessageSender = std::function<void(int, const std::string&)>;
 
-void send_message_with_length(int fd,const std::string &msg);
+void send_message_with_length(int fd, const std::string& msg);
 
 struct ServerContext
 {
-    std::unordered_map<int,Client>clients{};
-    mutable std::mutex  clients_mtx{};
+    std::unordered_map<int, Client> clients{};
+    mutable std::mutex clients_mtx{};
 
-    std::vector<int>to_remove{};
+    std::vector<int> to_remove{};
     std::mutex to_remove_mtx{};
 
     int epoll_fd{};
-    ThreadPool &pool;
-    std::string admin_token{};
-    std::string admin_nickname{};
+    ThreadPool& pool;
+
     std::mutex token_mtx{};
-    std::atomic<bool>shutdown_requested=false;
+    std::atomic<bool> shutdown_requested = false;
 
-    bool is_user_admin(const std::string &nickname)const;
+    bool is_user_admin(const std::string& nickname) const;
 
-    std::unique_ptr<GroupManager>group_manager;
+    std::unique_ptr<UserManager> user_manager;
+    std::unique_ptr<GroupManager> group_manager;
 
-    explicit ServerContext(ThreadPool&p,const MessageSender& sender);
+    explicit ServerContext(ThreadPool& p, const MessageSender& sender);
 
-    void broadcast(const std::string &msg,int sender_fd)const;
+    void broadcast(const std::string& msg, int sender_fd) const;
     std::string get_username(int fd);
-    void set_username(int fd,const std::string &username);
+    void set_username(int fd, const std::string& username);
     void remove_client(int fd);
 
-    bool kick_user_by_nickname(const std::string&target_nickname,const std::string&kicker_nickname);
+    bool kick_user_by_nickname(const std::string& target_nickname,
+                               const std::string& kicker_nickname);
 
-    int get_fd_by_nickname(const std::string&nickname)const;
+    int get_fd_by_nickname(const std::string& nickname) const;
 };
 
 #endif  // LITECHAT_SERVERCONTEXT_H
