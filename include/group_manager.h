@@ -28,6 +28,8 @@ struct Group
     std::string owner_nickname;
 
     std::unordered_set<std::string> members;
+
+    std::string password_hash;
 };
 
 inline void to_json(json& j, const Group& g)
@@ -35,7 +37,8 @@ inline void to_json(json& j, const Group& g)
     j = json{
         {"name", g.name},
         {"owner", g.owner_nickname},
-        {"members", g.members}
+        {"members", g.members},
+        {"password_hash",g.password_hash}
     };
 }
 
@@ -44,6 +47,14 @@ inline void from_json(const json& j, Group& g)
     j.at("name").get_to(g.name);
     j.at("owner").get_to(g.owner_nickname);
     j.at("members").get_to(g.members);
+
+    if (j.count("password_hash"))
+    {
+        j.at("password_hash").get_to(g.password_hash);
+    }else
+    {
+        g.password_hash="";
+    }
 }
 
 class GroupManager
@@ -58,8 +69,8 @@ public:
                                   const std::vector<std::string>& parts);
     std::string handle_send_message(const std::string& username,
                                     const std::vector<std::string>& parts);
-    std::string handle_list_groups();
-    void remove_client_from_groups(const std::string& username);
+    std::string handle_list_groups() const;
+    static void remove_client_from_groups(const std::string& username);
     std::string handle_group_kick(const std::string& kicker_nickname,
                                   const std::vector<std::string>& parts);
     std::string handle_group_leave(const std::string& username,

@@ -9,7 +9,25 @@
 #include <iomanip>
 #include <argon2.h>
 #include <random>
+#include "../include/UserManager.h"
 const std::string USER_FILE = "user_data.json";
+
+bool UserManager::verify_password(const std::string& hash, const std::string& password)
+{
+    int result=argon2_verify(
+        hash.c_str(),
+        password.c_str(),
+        password.length(),
+        Argon2_id);
+
+    if (result!=ARGON2_OK&&result!=ARGON2_VERIFY_MISMATCH)
+    {
+        LOG_DEBUG("Argon2 验证过程中发生错误，错误码: " << result);
+    }
+
+    return  result==ARGON2_OK;
+}
+
 
 bool UserManager::hash_password(const std::string& password,
                                 std::string& out_encoded_hash)
@@ -185,25 +203,7 @@ bool UserManager::validate_login(const std::string& nickname,
 
     const User& storeUser = it->second;
 
-    int result = argon2_verify(
-        storeUser.argon2_hash.c_str(),
-        password.c_str(),
-        password.length(),
-        Argon2_id);
-
-    if (result == ARGON2_OK)
-    {
-        return true;
-    }
-    else if (result == ARGON2_VERIFY_MISMATCH)
-    {
-        return false;
-    }
-    else
-    {
-        LOG_ERROR("Argon2 验证过程中发生错误，错误码: " << result);
-        return false;
-    }
+   return verify_password(storeUser.argon2_hash,password);
 }
 
 const User* UserManager::get_user(const std::string& nickname) const

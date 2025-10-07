@@ -2,12 +2,15 @@
 // Created by X on 2025/9/23.
 //
 #include "../include/group_manager.h"
+
+#include <unistd.h>
+
 #include <functional>
 #include <sstream>
 #include <fstream>
 #include "Logger.h"
 #include "../include/json.hpp"
-
+#include "../include/UserManager.h"
 using json = nlohmann::json;
 
 
@@ -35,12 +38,12 @@ std::vector<std::string> GroupManager::split(const std::string& s,
 std::string GroupManager::handle_create_group(
     const std::string& creator_nickname, const std::vector<std::string>& parts)
 {
-    if (parts.size() < 2)
+    if (parts.size() < 2||parts.size()>3)
     {
-        return "用法: /create <群名>";
+        return "用法: /creategroup <群名> [密码]";
     }
 
-    std::string group_name = parts[1];
+    const std::string& group_name = parts[1];
 
     if (group_name.empty())
     {
@@ -56,23 +59,42 @@ std::string GroupManager::handle_create_group(
     Group new_group;
     new_group.name = group_name;
     new_group.owner_nickname = creator_nickname;
-
     new_group.members.insert(creator_nickname);
 
-    groups.emplace(group_name, std::move(new_group));
+   if (parts.size()==3)
+   {
+       const std::string& password=parts[2];
 
-    LOG_INFO("用户 [" + creator_nickname + "] 创建了群组: " + group_name);
+       std::string encoded_hash;
 
-    return "恭喜！群组 '" + group_name + "' 创建成功，您已自动成为群主。\n";
+       if (UserManager::hash_password(password,encoded_hash))
+       {
+           new_group.password_hash=encoded_hash;
+
+           LOG_INFO("用户 [" + creator_nickname + "] 创建了密码保护群组: " + group_name);
+            groups.emplace(group_name,std::move(new_group));
+           return "恭喜！群组 '" + group_name + "' 创建成功，已设置密码，您是群主。\n";
+       }else
+       {
+           return "错误: 密码处理失败，群组创建中止。\n";
+       }
+   }else
+   {
+       new_group.password_hash="";
+
+       LOG_INFO("用户 [" + creator_nickname + "] 创建了公开群组: " + group_name);
+       groups.emplace(group_name,std::move(new_group));
+       return "恭喜！群组 '" + group_name + "' 创建成功，您已自动成为群主。\n";
+   }
 }
 
 
 std::string GroupManager::handle_join_group(
     const std::string& username, const std::vector<std::string>& parts)
 {
-    if (parts.size() < 2)
+    if (parts.size() < 2||parts.size()>3)
     {
-        return "用法: /join <群名>";
+        return "用法: /join <群名> [密码]";
     }
 
     const std::string& group_name = parts[1];
@@ -92,6 +114,21 @@ std::string GroupManager::handle_join_group(
         return "您已在该群组中。\n";
     }
 
+   if (!group.password_hash.empty())
+   {
+       if (parts.size()<3)
+       {
+           return "错误: 群组 '" + group_name + "' 是私有群组，需要密码才能加入。用法: /join <群名> <密码>\n";
+       }
+
+       const std::string& provided_password=parts[2];
+
+       if (!UserManager::verify_password(group.password_hash,provided_password))
+       {
+           return "错误: 您提供的群组密码不正确。\n";
+       }
+   }
+
     group.members.insert(username);
 
     LOG_INFO("用户 [" + username + "] 加入了群组: " + group_name);
@@ -99,7 +136,7 @@ std::string GroupManager::handle_join_group(
     return "成功加入群组 '" + group_name + "'。\n";
 }
 
-std::string GroupManager::handle_list_groups()
+std::string GroupManager::handle_list_groups()const
 {
     {
         std::lock_guard<std::mutex> lock(mtx);
@@ -167,43 +204,127 @@ std::string GroupManager::handle_send_message(
 
 void GroupManager::remove_client_from_groups(const std::string& username)
 {
-    {
-        std::lock_guard<std::mutex> lock(mtx);
+    LOG_INFO("客户端 [" +username+"] 已断开连接，群组永久数据保持不变。");
+}
 
-        for (auto& pair : groups)
+std::string GroupManager::handle_group_leave(const std::string& username,
+                                             const std::vector<std::string>&
+                                             parts)
+{
+
+    if (parts.size() < 2)
+    {
+        return "用法: /leave <群名>\n";
+    }
+
+    const std::string& group_name = parts[1];
+    std::lock_guard<std::mutex> lock(mtx);
+    auto group_it = groups.find(group_name);
+
+    if (group_it == groups.end())
+    {
+        return "错误：群组 '" + group_name + "' 不存在。\n";
+    }
+
+    Group& group = group_it->second;
+    auto member_it = group.members.find(username);
+
+    if (member_it == group.members.end())
+    {
+        return "错误：您不是群组 '" + group_name + "' 的成员。\n";
+    }
+
+    bool group_will_be_deleted=false;
+    std::string broadcast_msg;
+    std::string return_msg;
+    std::unordered_set<std::string> members_to_notify;
+
+
+    if (group.owner_nickname == username)
+    {
+        bool successfully_transferred=false;
+        if (group.members.size()>1)
         {
-            pair.second.members.erase(username);
+            std::string new_owner;
+            for (const auto&member:group.members)
+            {
+                if (member!=username)
+                {
+                    new_owner=member;
+                    break;
+                }
+            }
+            if (!new_owner.empty())
+            {
+                group.owner_nickname=new_owner;
+                group.members.erase(member_it);
+
+                broadcast_msg= "【系统】原群主 [" +username+ "] 主动离开了群组 [" + group_name+"]";
+                broadcast_msg+="群主已转让给 ["+new_owner+ "]。\n";
+
+                return_msg="您已成功退出群组 '" +group_name+"'，群主已转让给 [" +new_owner+"]。\n";
+
+                successfully_transferred=true;
+            }
         }
 
-        for (auto it = groups.begin(); it != groups.end();)
+        if (!successfully_transferred)
         {
-            const Group& group = it->second;
+            broadcast_msg="【系统】群主 [" + username + "] 离开了群组 [" + group_name + "]。群组已解散。\n";
 
-            bool should_disband = false;
+            groups.erase(group_it);
+            group_will_be_deleted=true;
 
-            if (group.owner_nickname == username)
-            {
-                LOG_INFO(
-                    "群组 [" + it->first + "] 的群主 [" + username + "] 已退出，群组自动解散。")
-                ;
-                should_disband = true;
-            }
-            else if (group.members.empty())
-            {
-                LOG_INFO("群组 [" + it->first + "] 成员清空，自动解散。");
-                should_disband = true;
-            }
+            return_msg="您已成功退出群组 '" + group_name + "'，群组已解散。\n";
+        }
 
-            if (should_disband)
+    }
+    else
+    {
+        members_to_notify=group.members;
+
+        group.members.erase(member_it);
+        broadcast_msg="【系统】成员 [" + username + "] 主动离开了群组 [" + group_name + "]\n";
+        return_msg="您已成功退出群组 [" + group_name + "]\n";
+
+        if (group.members.empty())
+        {
+            LOG_INFO("群组 [" + group_name + "] 所有成员已主动退出，群组解散。");
+            groups.erase(group_it);
+            return_msg+="由于您是最后一位成员，群组已解散。\n";
+        }
+    }
+
+    if (!broadcast_msg.empty())
+    {
+        if (group_will_be_deleted)
+        {
+            for (const auto&member_name:members_to_notify)
             {
-                it = groups.erase(it);
+                int member_fd=ctx_ref.get_fd_by_nickname(member_name);
+                if (member_fd!=-1)
+                {
+                    message_sender(member_fd,broadcast_msg);
+                }
             }
-            else
+        }else
+        {
+            for (const auto&member_name:group.members)
             {
-                ++it;
+                int member_fd=ctx_ref.get_fd_by_nickname(member_name);
+                if (member_fd!=-1)
+                {
+                    message_sender(member_fd,broadcast_msg);
+                }
             }
         }
     }
+
+    if (group_will_be_deleted)
+    {
+        LOG_ERROR("Group [" +group_name+ "] 标记解散，解散操作已执行。");
+    }
+    return return_msg;
 }
 
 std::string GroupManager::handle_group_kick(const std::string& kicker_nickname,
@@ -216,7 +337,9 @@ std::string GroupManager::handle_group_kick(const std::string& kicker_nickname,
     }
 
     const std::string& group_name = parts[1];
-    const std::string& victim_nickname = parts[2];
+     std::string victim_nickname = parts[2];
+
+
 
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -239,6 +362,11 @@ std::string GroupManager::handle_group_kick(const std::string& kicker_nickname,
         return "错误：群主不能踢自己。\n";
     }
 
+    std::transform(victim_nickname.begin(),victim_nickname.end(),victim_nickname.begin(),[](unsigned char c)
+    {
+        return std::tolower(c);
+    });
+
     auto member_it = group.members.find(victim_nickname);
     if (member_it == group.members.end())
     {
@@ -248,84 +376,19 @@ std::string GroupManager::handle_group_kick(const std::string& kicker_nickname,
 
     group.members.erase(member_it);
 
-    LOG_INFO(
-        "群主 [" + kicker_nickname + "] 将 [" + victim_nickname + "] 踢出群组 [" +
-        group_name + "]");
+    std::string broadcast_msg ="【系统】用户 [" + victim_nickname + "] 已被群主 [" + kicker_nickname + "] 踢出群组 [" + group_name + "]\n";
+    std::string return_msg="成功将用户 [" + victim_nickname + "] 踢出群组 [" + group_name + "]\n";
 
-    int victim_fd = ctx_ref.get_fd_by_nickname(victim_nickname);
-
-    if (victim_fd != -1)
+    if (group.members.empty())
     {
-        message_sender(victim_fd,
-                       "您已被群主 [" + kicker_nickname + "] 踢出群组 [" + group_name +
-                       "]。\n");
-    }
-
-    return "已将用户 '" + victim_nickname + "' 踢出群组 '" + group_name + "'。\n";
-}
-
-
-std::string GroupManager::handle_group_leave(const std::string& username,
-                                             const std::vector<std::string>&
-                                             parts)
-{
-    if (parts.size() < 2)
-    {
-        return "用法: /leave <群名>\n";
-    }
-
-    const std::string& group_name = parts[1];
-
-    std::lock_guard<std::mutex> lock(mtx);
-
-    auto group_it = groups.find(group_name);
-    if (group_it == groups.end())
-    {
-        return "错误：群组 '" + group_name + "' 不存在。\n";
-    }
-
-    Group& group = group_it->second;
-
-    auto member_it = group.members.find(username);
-    if (member_it == group.members.end())
-    {
-        return "错误：您不是群组 '" + group_name + "' 的成员。\n";
-    }
-
-    if (group.owner_nickname == username)
-    {
-        std::string broadcast_msg =
-            "【系统】群主 [" + username + "] 离开了群组 [" + group_name + "]。群组已解散。\n";
-
-        for (const std::string& member_name : group.members)
-        {
-            int member_fd = ctx_ref.get_fd_by_nickname(member_name);
-            if (member_fd != -1)
-            {
-                message_sender(member_fd, broadcast_msg);
-            }
-        }
-        groups.erase(group_it);
-        return "您已成功退出群组 '" + group_name + "'，群组已解散。\n";
-    }
-    else
-    {
+        LOG_INFO("群组 [" + group_name + "] 被踢后已清空，群组解散。");
         group.members.erase(member_it);
-
-        std::string broadcast_msg =
-            "【系统】用户 [" + username + "] 离开了群组 [" + group_name + "]。\n";
-
-        for (const std::string& member_name : group.members)
-        {
-            int member_fd = ctx_ref.get_fd_by_nickname(member_name);
-            if (member_fd != -1)
-            {
-                message_sender(member_fd, broadcast_msg);
-            }
-        }
-        return "您已成功退出群组 '" + group_name + "'。\n";
+        return_msg+="由于该操作导致群组成员清空，群组已解散。\n";
     }
+
+    return return_msg;
 }
+
 
 void GroupManager::load_groups_from_file(const std::string& filename)
 {
