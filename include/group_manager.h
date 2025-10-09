@@ -30,6 +30,8 @@ struct Group
     std::unordered_set<std::string> members;
 
     std::string password_hash;
+
+    std::unordered_set<std::string> banned_members;
 };
 
 inline void to_json(json& j, const Group& g)
@@ -38,7 +40,8 @@ inline void to_json(json& j, const Group& g)
         {"name", g.name},
         {"owner", g.owner_nickname},
         {"members", g.members},
-        {"password_hash",g.password_hash}
+        {"password_hash", g.password_hash},
+        {"banned_members", g.banned_members}
     };
 }
 
@@ -47,13 +50,15 @@ inline void from_json(const json& j, Group& g)
     j.at("name").get_to(g.name);
     j.at("owner").get_to(g.owner_nickname);
     j.at("members").get_to(g.members);
+    j.at("banned_members").get_to(g.banned_members);
 
     if (j.count("password_hash"))
     {
         j.at("password_hash").get_to(g.password_hash);
-    }else
+    }
+    else
     {
-        g.password_hash="";
+        g.password_hash = "";
     }
 }
 
@@ -75,7 +80,8 @@ public:
                                   const std::vector<std::string>& parts);
     std::string handle_group_leave(const std::string& username,
                                    const std::vector<std::string>& parts);
-
+    std::string handle_group_unban(const std::string& kicker_nickname,
+                                   const std::vector<std::string>& parts);
     void load_groups_from_file(const std::string& filename);
     void save_groups_to_file(const std::string& filename) const;
 
@@ -88,6 +94,8 @@ private:
     const ServerContext& ctx_ref;
 
     static std::vector<std::string> split(const std::string& s, char delimiter);
+
+    static std::string to_lower_nickname(const std::string& nickname);
 };
 
 #endif  // LITECHAT_GROUP_MANAGER_H

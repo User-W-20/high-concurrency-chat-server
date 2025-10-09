@@ -442,7 +442,7 @@ int main()
                 "/hello - Lua 脚本示例命令\n"
                 "/roll [max] - 掷骰子（Lua 脚本）\n"
                 "/quit - 退出聊天室\n"
-                "/leave - 退出群聊\n";
+                "/leave <群名> - 退出群聊\n";
 
             bool is_server_admin = false;
             {
@@ -463,6 +463,7 @@ int main()
             help_msg +=
                 "\n--- 群组管理命令（需群主身份）---\n"
                 "/groupkick <群名> <昵称> - 将群成员踢出群组\n"
+                "/groupunban <群名> <昵称> - 解除群组对某成员的加入限制\n"
                 "-----------------------\n";
             return help_msg;
         };
@@ -545,6 +546,24 @@ int main()
         return ctx.group_manager->handle_group_leave(username, args);
     };
 
+    user_commands["/groupunban"] = [&ctx](const std::vector<std::string>& args,
+                                          int fd)-> std::string
+    {
+        std::string username = ctx.get_username(fd);
+
+        if (username.empty())
+        {
+            return "请先设置昵称。\n";
+        }
+
+        if (args.size() < 3)
+        {
+            return "用法: /groupunban <群名> <昵称>。\n";
+        }
+
+        return ctx.group_manager->handle_group_unban(username, args);
+    };
+
     admin_commands["/kick"] = [&ctx](const std::vector<std::string>& args,
                                      int fd)-> std::string
     {
@@ -553,16 +572,16 @@ int main()
             return "用法: /kick <昵称>。\n";
         }
 
-        const std::string& target_nickname = args[1];
+        const std::string& target_nickname_raw = args[1];
 
-        int target_fd = ctx.get_fd_by_nickname(target_nickname);
+        std::string admin_name = ctx.get_username(fd);
+
+        int target_fd = ctx.get_fd_by_nickname(target_nickname_raw);
 
         if (target_fd != -1)
         {
-            std::string admin_name = ctx.get_username(fd);
-
             std::stringstream ss;
-            ss << admin_name << " 将 " << target_nickname << " 踢出聊天室。\n";
+            ss << admin_name << " 将 " << target_nickname_raw << " 踢出聊天室。\n";
 
             ctx.broadcast(ss.str(), fd);
 
@@ -571,11 +590,11 @@ int main()
 
             disconnect_client(target_fd, ctx);
 
-            return "用户 " + target_nickname + " 已被踢出。\n";
+            return "用户 " + target_nickname_raw + " 已被踢出。\n";
         }
         else
         {
-            return "用户 '" + target_nickname + "' 不在线。\n";
+            return "用户 '" + target_nickname_raw + "' 不在线。\n";
         }
     };
 
