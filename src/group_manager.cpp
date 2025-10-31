@@ -580,3 +580,68 @@ std::string GroupManager::handle_group_unban(
     return "成功将用户 [" + target_nickname + "] 从群组 [" + group_name_raw +
            "] 的限制中解除。他们现在可以重新加入。\n";
 }
+
+std::string GroupManager::handle_group_transfer(
+    const std::string& kicker_nickname_raw,
+    const std::vector<std::string>& parts)
+{
+    if (parts.size() < 3)
+    {
+        return "用法: /transfer <群名> <昵称>\n";
+    }
+
+    const std::string& group_name_raw = parts[1];
+    std::string target_nickname_raw = parts[2];
+
+    std::string group_name = to_lower_nickname(group_name_raw);
+    std::string kicker_nickname = to_lower_nickname(kicker_nickname_raw);
+    std::string target_nickname = to_lower_nickname(target_nickname_raw);
+
+    std::lock_guard<std::mutex> lock(mtx);
+
+    auto group_it = groups.find(group_name);
+    if (group_it == groups.end())
+    {
+        return "错误：群组 '" + group_name_raw + "' 不存在。\n";
+    }
+
+    Group& group = group_it->second;
+
+    if (group.owner_nickname != kicker_nickname)
+    {
+        return "错误：您不是群组 '" + group_name_raw + "' 的群主，无权转让所有权。\n";
+    }
+
+    if (kicker_nickname == target_nickname)
+    {
+        return "错误：您已经是群主了，无需转让给自己。\n";
+    }
+
+    if (group.members.find(target_nickname) == group.members.end())
+    {
+        return "错误：用户 '" + target_nickname_raw + "' 不是群组 '" + group_name_raw +
+               "' 的成员。\n";
+    }
+
+    group.owner_nickname = target_nickname;
+
+    std::string broadcast_msg = "【系统】群主 [" + kicker_nickname_raw + "] 已将群组 [" +
+                                group_name_raw + "] 的所有权转让给了 [" +
+                                target_nickname_raw + "]。\n";
+    LOG_INFO(
+        "群主 [" + kicker_nickname + "] 成功将群组 [" + group_name + "] 的所有权转让给 [" +
+        target_nickname + "]");
+
+    for (const auto& member_name_lower:group.members)
+    {
+        int member_fd=ctx_ref.get_fd_by_nickname(member_name_lower);
+
+        if (member_fd!=-1)
+        {
+            message_sender(member_fd,broadcast_msg);
+        }
+    }
+
+    return "成功将群组 '" + group_name_raw + "' 的所有权转让给了 [" + target_nickname_raw +
+           "]。\n";
+}

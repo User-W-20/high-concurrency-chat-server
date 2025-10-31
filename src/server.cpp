@@ -26,7 +26,7 @@
 constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
 constexpr int BUF_SIZE = 1024;
-constexpr int HEARTBEAT_TIMEOUT = 60; // 心跳超时
+constexpr int HEARTBEAT_TIMEOUT = 300; // 心跳超时
 constexpr int EPOLL_TIMEOUT_MS = 1000;
 
 std::atomic<bool> running = true;
@@ -464,6 +464,7 @@ int main()
                 "\n--- 群组管理命令（需群主身份）---\n"
                 "/groupkick <群名> <昵称> - 将群成员踢出群组\n"
                 "/groupunban <群名> <昵称> - 解除群组对某成员的加入限制\n"
+                "/transfer <群名> <昵称> - 将群主身份转让给指定成员\n"
                 "-----------------------\n";
             return help_msg;
         };
@@ -544,6 +545,24 @@ int main()
         }
 
         return ctx.group_manager->handle_group_leave(username, args);
+    };
+
+    user_commands["/transfer"] = [&ctx](const std::vector<std::string>& args,
+                                        int fd)-> std::string
+    {
+        std::string kicker_nickname = ctx.get_username(fd);
+
+        if (kicker_nickname.empty())
+        {
+            return "请先设置昵称。\n";
+        }
+
+        if (args.size() < 3)
+        {
+            return "用法: /transfer <群名> <昵称>\n";
+        }
+
+        return ctx.group_manager->handle_group_transfer(kicker_nickname, args);
     };
 
     user_commands["/groupunban"] = [&ctx](const std::vector<std::string>& args,

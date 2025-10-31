@@ -82,6 +82,8 @@ public:
                                    const std::vector<std::string>& parts);
     std::string handle_group_unban(const std::string& kicker_nickname,
                                    const std::vector<std::string>& parts);
+    std::string handle_group_transfer(const std::string& kicker_nickname_raw,
+                                      const std::vector<std::string>& parts);
     void load_groups_from_file(const std::string& filename);
     void save_groups_to_file(const std::string& filename) const;
 
