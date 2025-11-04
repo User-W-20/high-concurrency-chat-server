@@ -4,6 +4,7 @@ add_executable(server server.cpp
         LuaManager.cpp
         Logger.cpp
         UserManager.cpp
+        DatabaseManager.cpp
 )
 add_executable(client client.cpp)
 
@@ -17,4 +18,5 @@ target_link_libraries(server PRIVATE
         ${LUA_LIBRARIES}
         lua5.3
         ${ARGON2_LIBRARY}
+        mysqlcppconn
 )

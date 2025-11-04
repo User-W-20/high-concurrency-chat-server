@@ -3,29 +3,35 @@
 //
 #include "../include/UserManager.h"
 #include "../include/Logger.h"
+#include <cstddef>
+#include <cstdint>
 #include <fstream>
+#include <memory>
 #include <stdexcept>
 #include <iostream>
 #include <iomanip>
 #include <argon2.h>
 #include <random>
-#include "../include/UserManager.h"
+#include <cctype>
+#include <string>
+#include "../include/json.hpp"
 const std::string USER_FILE = "user_data.json";
 
-bool UserManager::verify_password(const std::string& hash, const std::string& password)
+bool UserManager::verify_password(const std::string& password,
+                                  const std::string& stored_hash)
 {
-    int result=argon2_verify(
-        hash.c_str(),
+    int result = argon2_verify(
+        stored_hash.c_str(),
         password.c_str(),
         password.length(),
         Argon2_id);
 
-    if (result!=ARGON2_OK&&result!=ARGON2_VERIFY_MISMATCH)
+    if (result != ARGON2_OK && result != ARGON2_VERIFY_MISMATCH)
     {
         LOG_DEBUG("Argon2 验证过程中发生错误，错误码: " << result);
     }
 
-    return  result==ARGON2_OK;
+    return result == ARGON2_OK;
 }
 
 
@@ -42,41 +48,40 @@ bool UserManager::hash_password(const std::string& password,
 
     std::random_device rd;
 
+    std::mt19937 generator(rd());
     std::uniform_int_distribution<int> dist(0, 255);
 
     for (size_t i = 0; i < SALT_LEN; ++i)
     {
-        salt[i] = static_cast<unsigned char>(dist(rd));
+        salt[i] = static_cast<unsigned char>(dist(generator));
     }
 
     size_t encoded_len = argon2_encodedlen(T_COST, M_COST, P_COST, SALT_LEN,
                                            HASH_LEN, Argon2_id);
 
-    char* encoded_hash = (char*)malloc(encoded_len);
+    std::unique_ptr<char []> encoded_hash = std::make_unique<char []>(
+        encoded_len);
 
     int result = argon2id_hash_encoded(T_COST, M_COST, P_COST,
                                        password.c_str(), password.length(),
                                        salt, SALT_LEN,
                                        HASH_LEN,
-                                       encoded_hash, encoded_len);
+                                       encoded_hash.get(), encoded_len);
 
     if (result == ARGON2_OK)
     {
-        out_encoded_hash = std::string(encoded_hash);
-        free(encoded_hash);
+        out_encoded_hash = std::string(encoded_hash.get());
         return true;
     }
     else
     {
         LOG_ERROR("Argon2 哈希失败，错误码: " << result);
-        free(encoded_hash);
         return false;
     }
 }
 
 UserManager::UserManager()
 {
-
 }
 
 void UserManager::load_users_from_file(const std::string& filename)
@@ -160,52 +165,6 @@ void UserManager::save_users_to_file(const std::string& filename) const
     }
 }
 
-bool UserManager::register_user(const std::string& nickname,
-                                const std::string& password)
-{
-    std::lock_guard<std::mutex> lock(mtx_);
-    if (registered_users_.count(nickname))
-    {
-        return false;
-    }
-
-    User newUser;
-    std::string encoded_hash;
-
-    if (!hash_password(password, encoded_hash))
-    {
-        return false;
-    }
-
-    newUser.nickname = nickname;
-    newUser.argon2_hash = encoded_hash;
-
-    if (nickname == "admin" && registered_users_.empty())
-    {
-        newUser.is_admin = true;
-    }
-
-    registered_users_[nickname] = newUser;
-    LOG_INFO("新用户注册: " << nickname <<(newUser.is_admin?" (管理员)" : ""));
-    return true;
-}
-
-bool UserManager::validate_login(const std::string& nickname,
-                                 const std::string& password)
-{
-    std::lock_guard<std::mutex> lock(mtx_);
-    auto it = registered_users_.find(nickname);
-
-    if (it == registered_users_.end())
-    {
-        return false;
-    }
-
-    const User& storeUser = it->second;
-
-   return verify_password(storeUser.argon2_hash,password);
-}
-
 const User* UserManager::get_user(const std::string& nickname) const
 {
     std::lock_guard<std::mutex> lock(mtx_);
@@ -221,6 +180,49 @@ const User* UserManager::get_user(const std::string& nickname) const
 
 bool UserManager::is_user_register(const std::string& nickname) const
 {
+    std::string nickname_lower = to_lower_nickname(nickname);
     std::lock_guard<std::mutex> lock(mtx_);
-    return registered_users_.count(nickname);
+    return registered_users_.count(nickname_lower);
+}
+
+bool UserManager::add_user_to_memory(const std::string& username_raw,
+                                     const std::string& password_hash,
+                                     bool is_admin)
+{
+    std::string username_lower = to_lower_nickname(username_raw);
+
+    std::lock_guard<std::mutex> lock(mtx_);
+
+    if (registered_users_.count(username_lower))
+    {
+        return false;
+    }
+
+    User newUser;
+    newUser.nickname = username_raw;
+    newUser.argon2_hash = password_hash;
+    newUser.is_admin = is_admin;
+
+    registered_users_.emplace(username_lower, newUser);
+
+    LOG_INFO("用户数据同步到内存缓存: " +username_raw);
+    return true;
+}
+
+bool UserManager::is_user_in_memory(const std::string& username_lower) const
+{
+    std::lock_guard<std::mutex> lock(mtx_);
+    return registered_users_.count(username_lower);
+}
+
+std::string UserManager::to_lower_nickname(const std::string& nickname)
+{
+    std::string lower_nickname = nickname;
+    std::transform(lower_nickname.begin(), lower_nickname.end(),
+                   lower_nickname.begin(), [](unsigned char c)
+                   {
+                       return std::tolower(c);
+                   });
+
+    return lower_nickname;
 }

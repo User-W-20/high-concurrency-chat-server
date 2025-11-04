@@ -12,6 +12,7 @@
 #include <memory>
 #include <functional>
 #include "client.h"
+#include "DatabaseManager.h"
 
 class ThreadPool;
 class GroupManager;
@@ -40,7 +41,10 @@ struct ServerContext
     std::unique_ptr<UserManager> user_manager;
     std::unique_ptr<GroupManager> group_manager;
 
-    explicit ServerContext(ThreadPool& p, const MessageSender& sender);
+    DatabaseManager& db_manager;
+
+    explicit ServerContext(ThreadPool& p, const MessageSender& sender,
+                           DatabaseManager& db_m);
 
     void broadcast(const std::string& msg, int sender_fd) const;
     std::string get_username(int fd);
@@ -51,6 +55,7 @@ struct ServerContext
                                const std::string& kicker_nickname);
 
     int get_fd_by_nickname(const std::string& nickname) const;
+
 };
 
 #endif  // LITECHAT_SERVERCONTEXT_H

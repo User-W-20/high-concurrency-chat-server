@@ -53,3 +53,5 @@ client
 # 确保你的运行时数据文件也被忽略，避免在仓库中存储用户数据！
 users_data.json
 groups_data.json
+
+.env

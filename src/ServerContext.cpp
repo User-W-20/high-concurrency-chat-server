@@ -12,11 +12,13 @@
 #include "Logger.h"
 #include "../include/UserManager.h"
 
-ServerContext::ServerContext(ThreadPool& p, const MessageSender& sender)
+
+ServerContext::ServerContext(ThreadPool& p, const MessageSender& sender,
+                             DatabaseManager& db_m)
     : pool(p),
       user_manager(std::make_unique<UserManager>()),
-      group_manager(std::make_unique<GroupManager>(sender, *this))
-
+      group_manager(std::make_unique<GroupManager>(sender, *this)),
+      db_manager(db_m)
 {
     try
     {
@@ -154,9 +156,14 @@ int ServerContext::get_fd_by_nickname(const std::string& nickname) const
 {
     std::lock_guard<std::mutex> lock(this->clients_mtx);
 
+    std::string search_lower = UserManager::to_lower_nickname(nickname);
+
     for (const auto& pair : this->clients)
     {
-        if (pair.second.nickname == nickname)
+        std::string client_lower = UserManager::to_lower_nickname(
+            pair.second.nickname);
+
+        if (client_lower == search_lower)
         {
             return pair.first;
         }

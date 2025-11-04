@@ -22,6 +22,8 @@
 #include "../include/threadpool.h"
 #include "../include/LuaManager.h"
 #include "../include/UserManager.h"
+#include "../include/config.h"
+#include "../include/DatabaseManager.h"
 
 constexpr int MAX_EVENTS = 1024;
 constexpr int PORT = 5008;
@@ -149,52 +151,83 @@ void handle_message(
         std::transform(command.begin(), command.end(), command.begin(),
                        ::tolower);
 
-        const std::string& user = args[1];
+        const std::string& user_raw = args[1];
         const std::string& pass = args[2];
 
+        std::string user_lower = ctx.user_manager->to_lower_nickname(user_raw);
+
+        std::string db_username_raw;
+        std::string db_argon2_hash;
+        bool db_is_admin = false;
         if (command == "/register")
         {
-            if (ctx.user_manager->register_user(user, pass))
+            User existing_user;
+
+            if (ctx.db_manager.get_user_data(user_lower, db_username_raw,
+                                             db_argon2_hash, db_is_admin))
+            {
+                send_message_with_length(fd, "注册失败: 用户名已被占用。");
+                return;
+            }
+
+            std::string encoded_hash;
+            if (!UserManager::hash_password(pass, encoded_hash))
+            {
+                send_message_with_length(fd, "注册失败: 密码处理失败。");
+                return;
+            }
+
+            if (ctx.db_manager.register_user(user_raw, user_lower,
+                                             encoded_hash))
             {
                 send_message_with_length(fd, "注册成功! 请使用 /login 登录。");
             }
             else
             {
-                send_message_with_length(fd, "注册失败: 用户名已被占用或格式错误。");
+                send_message_with_length(fd, "注册失败: 数据库写入错误。");
             }
         }
         else if (command == "/login")
         {
-            if (ctx.user_manager->validate_login(user, pass))
+            if (!ctx.db_manager.get_user_data(user_lower, db_username_raw,
+                                              db_argon2_hash, db_is_admin))
             {
-                if (ctx.get_fd_by_nickname(user) != -1)
+                send_message_with_length(fd, "登录失败: 用户名或密码错误。");
+                return;
+            }
+
+            if (UserManager::verify_password(pass, db_argon2_hash))
+            {
+                if (ctx.get_fd_by_nickname(db_username_raw) != -1)
                 {
                     send_message_with_length(fd, "错误: 该用户已在别处登录。");
                     return;
                 }
 
-                ctx.set_username(fd, user);
+                ctx.user_manager->add_user_to_memory(
+                    db_username_raw,
+                    db_argon2_hash,
+                    db_is_admin);
 
-                const User* logged_user = ctx.user_manager->get_user(user);
+                ctx.set_username(fd, db_username_raw);
 
                 {
                     std::lock_guard<std::mutex> lock(ctx.clients_mtx);
                     if (ctx.clients.count(fd))
                     {
-                        ctx.clients.at(fd).is_admin = logged_user
-                            ? logged_user->is_admin
-                            : false;
+                        ctx.clients.at(fd).is_admin = db_is_admin;
                     }
                 }
 
-                std::string welcome_msg = "登录成功! 欢迎回来, " + user;
-                if (logged_user && logged_user->is_admin)
+                std::string welcome_msg = "登录成功! 欢迎回来, " + db_username_raw;
+
+                if (db_is_admin)
                 {
                     welcome_msg += " (管理员)";
                 }
 
                 send_message_with_length(fd, welcome_msg);
-                ctx.broadcast(user + " 加入聊天室", fd);
+                ctx.broadcast(db_username_raw + " 加入聊天室", fd);
             }
             else
             {
@@ -204,10 +237,10 @@ void handle_message(
         else
         {
             send_message_with_length(fd, "未知命令。请先使用 /register 或 /login。");
+            return;
         }
         return;
     }
-
     if (trimmed_msg[0] == '/')
     {
         std::vector<std::string> args = split(trimmed_msg);
@@ -308,21 +341,30 @@ int main()
         send_message_with_length(fd, message);
     };
 
-    ServerContext ctx(pool, sender);
+    std::map<std::string, std::string> env_config = load_env();
 
-    const std::string USER_FILE = "users_data.json";
+    if (env_config.empty())
+    {
+        LOG_FATAL("无法加载 .env 配置文件。服务器退出。");
+        return 1;
+    }
+
+    DatabaseManager& db_manager = DatabaseManager::getInstance();
+    if (!db_manager.connect(env_config))
+    {
+        LOG_FATAL("数据库连接失败。服务器退出。");
+        return 1;
+    }
+    LOG_INFO("数据库连接成功。");
+
+    ServerContext ctx(pool, sender, db_manager);
+    if (env_config.empty())
+    {
+        LOG_FATAL("无法加载 .env 配置文件。服务器退出。");
+        return 1;
+    }
+
     const std::string GROUP_FILE = "groups_data.json";
-
-    try
-    {
-        ctx.user_manager->load_users_from_file(USER_FILE);
-        LOG_INFO("成功加载用户数据。");
-    }
-    catch (const std::exception& e)
-    {
-        LOG_ERROR("加载用户数据失败: "<<e.what()<<"。将从空状态启动。");
-    }
-
     try
     {
         ctx.group_manager->load_groups_from_file(GROUP_FILE);
@@ -830,15 +872,8 @@ int main()
 
     LOG_INFO("服务器关闭流程：保存数据...");
 
-    try
-    {
-        ctx.user_manager->save_users_to_file(USER_FILE);
-        LOG_INFO("用户数据保存完成。");
-    }
-    catch (const std::exception& e)
-    {
-        LOG_ERROR("致命错误：保存用户数据失败！数据可能丢失。错误: " << e.what());
-    }
+    db_manager.disconnect();
+    LOG_INFO("数据库已断开连接。");
 
     try
     {

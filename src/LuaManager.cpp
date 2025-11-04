@@ -108,7 +108,7 @@ bool LuaManager::initialize()
 
     register_c_functions();
 
-    if (luaL_dofile(L, "../../src/commands.lua") != LUA_OK)
+    if (luaL_dofile(L, "src/commands.lua") != LUA_OK)
     {
         const char* error = lua_tostring(L, -1);
         LOG_ERROR("加载 commands.lua 失败: "+std::string(error));
